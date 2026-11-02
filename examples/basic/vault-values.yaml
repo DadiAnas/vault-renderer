@@ -1,0 +1,20 @@
+vault-injector:
+  enabled: true
+  defaults:
+    vault-addr: https://vault.example.com
+    auth-path: auth/kubernetes
+    agent-image: hashicorp/vault:1.20.4
+    agent-pre-populate: "true"
+    agent-pre-populate-only: "false"
+  targets:
+    - kind: Deployment
+      name: payment-api
+      inject:
+        role: payment-api
+        agent-inject-secret-database: secret/data/payment/database
+        agent-inject-file-database: database.env
+        agent-inject-template-database: |
+          {{- with secret "secret/data/payment/database" -}}
+          DB_USERNAME={{ .Data.data.username }}
+          DB_PASSWORD={{ .Data.data.password }}
+          {{- end }}
