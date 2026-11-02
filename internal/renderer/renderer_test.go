@@ -496,6 +496,62 @@ func TestInvalidManifestYAMLFails(t *testing.T) {
 	}
 }
 
+func TestDuplicateOrdinaryManifestKeysUseLastValue(t *testing.T) {
+	input := `apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: reports
+  labels:
+    appcode: first
+    appcode: final
+spec:
+  template:
+    metadata:
+      labels:
+        opscontact: first
+        opscontact: final
+      annotations:
+        vault.hashicorp.com/agent-inject: "true"
+        vault.hashicorp.com/service: https://vault.example.com
+        vault.hashicorp.com/role: reports
+        vault.hashicorp.com/agent-inject-secret-config: secret/data/reports
+    spec:
+      containers: [{name: app, image: nginx}]
+`
+	out, err := Render([]byte(input), DefaultConfig(), "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := string(out)
+	if !strings.Contains(s, "kind: ConfigMap") || !strings.Contains(s, "appcode: final") || !strings.Contains(s, "opscontact: final") || strings.Contains(s, "appcode: first") || strings.Contains(s, "opscontact: first") {
+		t.Fatal(s)
+	}
+}
+
+func TestDuplicateVaultAnnotationFailsClearly(t *testing.T) {
+	input := `apiVersion: v1
+kind: Pod
+metadata:
+  name: demo
+  annotations:
+    vault.hashicorp.com/agent-inject: "true"
+    vault.hashicorp.com/agent-inject: "false"
+spec:
+  containers: [{name: app, image: nginx}]
+`
+	_, err := Render([]byte(input), DefaultConfig(), "")
+	if err == nil || !strings.Contains(err.Error(), "duplicate Vault annotation") {
+		t.Fatal("duplicate Vault annotation did not fail clearly", err)
+	}
+}
+
+func TestOptionalConfigStillRejectsDuplicateKeys(t *testing.T) {
+	_, err := ParseConfig([]byte("vault-injector:\n  enabled: true\n  enabled: false\n"))
+	if err == nil {
+		t.Fatal("duplicate renderer configuration key was accepted")
+	}
+}
+
 func TestVaultInitFollowsExistingInitContainersUnlessRequestedFirst(t *testing.T) {
 	cfg, err := ParseConfig([]byte(config))
 	if err != nil {

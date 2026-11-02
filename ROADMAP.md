@@ -25,6 +25,14 @@
 - **Evidence:** `v0.1.0-beta.2` is published with six verified archives and checksums. No-config CLI and annotation precedence tests pass; a real Grafana Tempo chart rendered with annotations and no renderer config; an installed vault-k8s 1.7.6 webhook did not add duplicate Agents. The same chart without the renderer received the official init and sidecar pattern in a comparison namespace. CI, vet, and gosec passed; Pages is live. See [QUALIFICATION.md](QUALIFICATION.md).
 - **Current blocker / next action:** production admission remains open. Runtime secret retrieval for this particular no-config Tempo run was not tested; application consumption still needs chart-specific configuration. Qualify the exact release in the intended Kubernetes/Vault environment before treating it as production-ready.
 
+## Duplicate keys in Helm manifests
+
+- **Outcome / owner / priority:** maintainers / high: accept repeated noncritical mapping keys such as `appcode` and `opscontact` in Helm-rendered manifests without aborting injection.
+- **Impact map:** manifest YAML decoding in `Render`, selected and unselected workload output, duplicate Vault annotation handling, renderer regression tests, and release documentation. External config decoding remains strict.
+- **Acceptance evidence:** duplicate ordinary labels use a documented deterministic value, the annotation-driven workload still injects, malformed YAML still fails, and duplicate injection-critical Vault annotations cannot silently change behavior. Run Go tests, vet, gosec, and a CLI render before publishing a fix.
+- **Evidence:** the reported duplicate-key error was reproduced in a renderer regression test. Ordinary keys now use the last value; duplicate Vault annotations fail with line numbers; optional config parsing remains strict. Go tests, vet, gosec, and a no-config CLI render with both repeated labels pass.
+- **Current blocker / next action:** publish a patch preview binary and verify its uploaded checksums. The user's exact chart was not provided; the regression uses the reported key pattern.
+
 ## Next compatibility work
 
 - Expand supported Vault Agent Injector annotations with tests for each new setting.

@@ -368,12 +368,19 @@ func Render(input []byte, cfg Config, releaseNamespace string) ([]byte, error) {
 	decoder := yaml.NewDecoder(bytes.NewReader(input))
 	var docs []map[string]any
 	for {
-		var doc map[string]any
-		err := decoder.Decode(&doc)
+		var node yaml.Node
+		err := decoder.Decode(&node)
 		if err == io.EOF {
 			break
 		}
 		if err != nil {
+			return nil, fmt.Errorf("manifest YAML: %w", err)
+		}
+		if err := deduplicateManifestKeys(&node); err != nil {
+			return nil, fmt.Errorf("manifest YAML: %w", err)
+		}
+		var doc map[string]any
+		if err := node.Decode(&doc); err != nil {
 			return nil, fmt.Errorf("manifest YAML: %w", err)
 		}
 		if len(doc) > 0 {
@@ -513,6 +520,34 @@ func Render(input []byte, cfg Config, releaseNamespace string) ([]byte, error) {
 	}
 	docs = append(generated, docs...)
 	return encode(docs)
+}
+
+func deduplicateManifestKeys(node *yaml.Node) error {
+	if node.Kind == yaml.MappingNode {
+		seen := make(map[string]int)
+		content := make([]*yaml.Node, 0, len(node.Content))
+		for i := 0; i < len(node.Content); i += 2 {
+			key, value := node.Content[i], node.Content[i+1]
+			if key.Kind == yaml.ScalarNode {
+				if previous, exists := seen[key.Value]; exists {
+					if strings.HasPrefix(key.Value, prefix) {
+						return fmt.Errorf("duplicate Vault annotation %q at lines %d and %d", key.Value, content[previous].Line, key.Line)
+					}
+					content[previous+1] = value
+					continue
+				}
+				seen[key.Value] = len(content)
+			}
+			content = append(content, key, value)
+		}
+		node.Content = content
+	}
+	for _, child := range node.Content {
+		if err := deduplicateManifestKeys(child); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func encode(docs []map[string]any) ([]byte, error) {

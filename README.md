@@ -102,6 +102,8 @@ The chart must render `agent-inject: "true"`, a Vault role, a supported secret a
 
 Generated ConfigMap names include workload kind to avoid collisions. The Pod template receives a renderer marker and a SHA-256 checksum of the generated Agent HCL. A repeated render with the same configuration is byte-stable. Existing renderer markers are checked against the ConfigMap and injected artifacts. A collision with an existing ConfigMap or container/volume/mount fails. The renderer removes active `vault.hashicorp.com/*` Pod annotations after consuming them and adds `agent-inject-status: injected`, so a vault-k8s 1.7.6 admission injector does not inject the Pod again. Keep the renderer enabled on Helm upgrades and rollbacks.
 
+If a Helm-rendered manifest repeats an ordinary YAML mapping key, the renderer keeps the last value and emits that key once. Duplicate `vault.hashicorp.com/*` keys fail with line numbers because their order could change injection behavior. The optional renderer configuration file remains strict about duplicate keys.
+
 ## Startup and security
 
 - Default: init container renders initial templates; sidecar continues refresh and renewal. Existing init containers run before the Vault init Agent unless `agent-init-first: "true"` is set. `agent-pre-populate-only: "true"` selects init-only. `agent-pre-populate: "false"` selects sidecar-only; application startup then **does not wait** for secrets. Init uses `exit_after_auth = true` and the Agent template stanzas; the sidecar uses `false`.
