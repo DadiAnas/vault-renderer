@@ -134,7 +134,7 @@ code { font-size: .88em; }
 .text-link { display: inline-flex; align-items: center; gap: 12px; color: var(--ink); text-decoration: none; font-weight: 700; font-size: 14px; }
 .command-card { overflow: hidden; border: 1px solid #344e5f; border-radius: 14px; background: #12283b; color: #eff7f8; box-shadow: 0 20px 45px rgba(21,38,59,.13); }
 .command-header { display: flex; justify-content: space-between; padding: 12px 19px; border-bottom: 1px solid #375065; color: #a4bbc4; font: 500 11px var(--mono); }
-.command-card pre { padding: 23px 20px 27px; font: 400 11px/1.8 var(--mono); white-space: pre; }
+.command-card pre { padding: 23px 20px 27px; font: 400 11px/1.8 var(--mono); white-space: pre; overflow-x: auto; }
 .shell-comment { color: #86bfb8; }
 
 .version-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 53px; }

@@ -83,19 +83,37 @@ vault-injector:
     agent-image: registry.company.example/security/vault:2.0.4
 ```
 
+**Helm 3 — inline post-renderer argument:**
+
 ```sh
 helm upgrade --install myapp ./chart --namespace production \
-  -f values.yaml \
-  --post-renderer ./vault-renderer \
+  -f values.yaml --post-renderer ./vault-renderer \
   --post-renderer-args=--config=values.yaml
 ```
 
-For Helm 4, use the installed plugin name `--post-renderer vault-renderer` with the same `--post-renderer-args`. The environment variable remains an alternative:
+**Helm 3 — environment variable:**
 
 ```sh
 VAULT_RENDERER_CONFIG="$PWD/values.yaml" \
   helm upgrade --install myapp ./chart --namespace production \
     -f values.yaml --post-renderer ./vault-renderer
+```
+
+**Helm 4 — install the bundled plugin, then choose either form:**
+
+```sh
+export PATH="$PWD:$PATH"
+helm plugin install "$PWD/helm4-plugin"
+
+# Inline argument
+helm upgrade --install myapp ./chart --namespace production \
+  -f values.yaml --post-renderer vault-renderer \
+  --post-renderer-args=--config=values.yaml
+
+# Environment variable
+VAULT_RENDERER_CONFIG="$PWD/values.yaml" \
+  helm upgrade --install myapp ./chart --namespace production \
+    -f values.yaml --post-renderer vault-renderer
 ```
 
 The path must reach both Helm and the renderer because Helm passes only rendered manifests to a post-renderer, not its `-f` arguments or merged values. The `vault-injector` section is validated strictly; unrelated chart values are ignored. A chart with a closed `values.schema.json` may reject a new top-level key before the renderer runs.
