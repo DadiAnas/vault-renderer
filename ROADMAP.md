@@ -2,7 +2,7 @@
 
 ## Current release
 
-- **Outcome:** publish the Go renderer as an open-source project at `github.com/dadianas/vault-renderer`, with a GitHub Pages guide and downloadable cross-platform release. The `v0.1.0-beta.1` preview is published.
+- **Outcome:** publish the Go renderer as an open-source project at `github.com/dadianas/vault-renderer`, with a GitHub Pages guide and downloadable cross-platform release. The `v0.1.0-beta.2` preview adds default annotation discovery.
 - **Owner / priority:** maintainers / high.
 - **Acceptance evidence:** public repository with a license and clean source history; tests, vet, build, gosec, multi-target fixture, and third-party chart rendering pass; GitHub Pages is live and checked at desktop and mobile widths; a new Compose Vault plus kind Kubernetes test passes; Linux/macOS/Windows binaries and checksums are attached to a verified GitHub release; supported annotations, generic use cases, and example outputs are explained in the README and site.
 - **Impact map:** module import path, CLI build, README links, multi-kind fixtures and rendered output, third-party chart qualification, annotation reference, public documentation, license, GitHub workflows, Pages configuration, Compose test fixture, security scanning, release packaging, and downstream Helm 2/3/4 instructions. No Kubernetes manifests or stored secrets need migration.
@@ -22,8 +22,8 @@
 - **Outcome / owner / priority:** maintainers / high: make annotation-driven injection work with only `--post-renderer`, while retaining environment-specific targets, exclusions, defaults, and an explicit discovery opt-out.
 - **Impact map:** CLI optional config loading, configuration defaults, render selection and precedence, existing annotation and target callers, annotation and CLI tests, Helm 2/3/4 integration, README and annotation reference, and the public guide. No manifest schema or stored secrets change.
 - **Acceptance evidence:** no-config CLI selects an annotated workload; `annotationDiscovery: false` does not; matching environment targets override supported annotation values including `agent-inject`; exclusions and disable targets still win; unannotated, untargeted resources remain unchanged; Go tests, vet, gosec, and a real annotated chart render pass. An annotation without a Vault address requires an external address because Helm output cannot reveal injector deployment defaults.
-- **Evidence:** no-config CLI and annotation precedence tests pass; a real Grafana Tempo chart rendered with annotations and no renderer config; an installed vault-k8s 1.7.6 webhook did not add duplicate Agents. The same chart without the renderer received the official init and sidecar pattern in a comparison namespace. See [QUALIFICATION.md](QUALIFICATION.md).
-- **Current blocker / next action:** publish a new preview binary and documentation after final checks. Runtime secret retrieval for this particular no-config Tempo run was not tested; application consumption still needs chart-specific configuration.
+- **Evidence:** `v0.1.0-beta.2` is published with six verified archives and checksums. No-config CLI and annotation precedence tests pass; a real Grafana Tempo chart rendered with annotations and no renderer config; an installed vault-k8s 1.7.6 webhook did not add duplicate Agents. The same chart without the renderer received the official init and sidecar pattern in a comparison namespace. CI, vet, and gosec passed; Pages is live. See [QUALIFICATION.md](QUALIFICATION.md).
+- **Current blocker / next action:** production admission remains open. Runtime secret retrieval for this particular no-config Tempo run was not tested; application consumption still needs chart-specific configuration. Qualify the exact release in the intended Kubernetes/Vault environment before treating it as production-ready.
 
 ## Next compatibility work
 
