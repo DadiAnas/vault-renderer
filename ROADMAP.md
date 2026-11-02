@@ -75,6 +75,14 @@
 ## Next compatibility work
 
 - Track new vault-k8s annotation releases and update the pinned inventory, compatibility tests, and dependency audit together.
+
+## Architecture documentation
+
+- **Outcome / owner / priority:** maintainers / medium: explain the current Helm post-render and Vault Agent runtime architecture with diagrams in the repository docs and public site.
+- **Impact map:** add a GitHub-rendered architecture guide, link it from README and site navigation, add responsive diagrams to the existing static site, and keep the annotation-driven and target-only paths distinct. No binary, configuration, Kubernetes manifest, or deployment contract changes.
+- **Acceptance evidence:** diagrams accurately show workload selection, mutation, webhook coexistence, and runtime secret retrieval; describe when a ConfigMap is generated and the configuration precedence; README and site links resolve; mobile and desktop site views render without overflow; Pages serves the updated guide.
+- **Evidence:** source paths for selection, official mutation, target-only ConfigMaps, webhook status, and runtime token handling were checked against `renderer.go` and `official.go`. `ARCHITECTURE.md` now contains two Mermaid diagrams and configuration-order explanations; the site contains two responsive HTML diagrams. Local browser checks at 1440 px, 770 px, and 390 px showed no horizontal overflow, and the page had no browser errors.
+- **Current cursor:** docs are ready for publication. Next action: publish, verify the GitHub guide and live Pages section, and confirm the final build.
 - Add custom PodSpec paths and configurable security contexts only when their validation and conflict behavior are defined.
 - Qualify failure behavior during missing secrets, Vault outages, and reauthentication.
 - Verify installation, upgrade, and rollback in the intended Kubernetes environment before marking a production release.

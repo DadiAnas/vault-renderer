@@ -23,6 +23,7 @@
         <span>vault<span class="brand-separator">/</span>renderer</span>
       </a>
       <nav aria-label="Main navigation" class="nav-links">
+        <a href="#architecture">Architecture</a>
         <a href="#examples">Use cases</a>
         <a href="#annotations">Annotations</a>
         <a href="#helm">Helm versions</a>
@@ -80,6 +81,36 @@
         <article class="step"><span class="step-index">03</span><div class="step-icon" aria-hidden="true">◈</div><h3>Retrieve</h3><p>After deployment, Vault Agent authenticates through the Pod’s ServiceAccount and writes secret files inside the Pod. Retrieved values stay out of Helm resources.</p></article>
       </div>
     </section>
+
+    <section class="section architecture-section" id="architecture" aria-labelledby="architecture-title"><div class="wrap">
+      <div class="section-intro"><p class="section-kicker">Architecture</p><h2 id="architecture-title">What changes before deploy. What runs after.</h2><p>The renderer handles manifests, while Vault Agent handles secrets. These two paths show where each step happens and when a ConfigMap is needed.</p></div>
+      <figure class="architecture-diagram"><figcaption><span>01 / Before deployment</span><strong>From chart values to the Kubernetes API</strong></figcaption>
+        <div class="architecture-sequence">
+          <div class="architecture-node"><span class="architecture-node-label">Helm input</span><h3>Chart + <code>-f</code> values</h3><p>Helm resolves templates and values into final manifests.</p></div>
+          <span class="architecture-arrow" aria-hidden="true"></span>
+          <div class="architecture-node"><span class="architecture-node-label">Manifest stream</span><h3>Final Pod annotations</h3><p>The renderer reads the YAML from Helm on stdin.</p></div>
+          <span class="architecture-arrow" aria-hidden="true"></span>
+          <div class="architecture-node architecture-node-core"><span class="architecture-node-label">vault-renderer</span><h3>Select and mutate</h3><p>Inspect six workload kinds; apply optional defaults, targets, and exclusions.</p><div class="architecture-branches"><div><b>Existing Vault annotations</b><span>HashiCorp injector engine; Agent config in <code>VAULT_CONFIG</code>.</span></div><div><b>Target only</b><span>Generated Agent ConfigMap and Pod mounts.</span></div></div></div>
+          <span class="architecture-arrow" aria-hidden="true"></span>
+          <div class="architecture-node"><span class="architecture-node-label">Deployment</span><h3>Helm → Kubernetes</h3><p>Helm stores and submits the mutated manifests. <code>agent-inject-status: injected</code> avoids a second webhook mutation.</p></div>
+        </div>
+        <p class="architecture-note">Precedence: matching target overrides → final Pod annotations → renderer defaults. The renderer does not retrieve secrets.</p>
+      </figure>
+      <figure class="architecture-diagram architecture-runtime"><figcaption><span>02 / Pod runtime</span><strong>Vault Agent retrieves and renders secrets</strong></figcaption>
+        <div class="architecture-pod-lane"><span class="architecture-node-label">Inside the application Pod</span><div class="architecture-runtime-sequence">
+          <div class="architecture-node"><span class="architecture-node-label">Auth identity</span><h3>ServiceAccount token</h3><p>A projected token is available to the Agent.</p></div>
+          <span class="architecture-arrow" aria-hidden="true"></span>
+          <div class="architecture-node"><span class="architecture-node-label">Runtime process</span><h3>Vault Agent</h3><p>Init and/or sidecar uses the configured role and templates.</p></div>
+          <span class="architecture-arrow" aria-hidden="true"></span>
+          <div class="architecture-node"><span class="architecture-node-label">Secret files</span><h3>Shared memory volume</h3><p>Agent writes rendered secret files here.</p></div>
+          <span class="architecture-arrow" aria-hidden="true"></span>
+          <div class="architecture-node"><span class="architecture-node-label">Consumer</span><h3>Application</h3><p>Reads the mounted files.</p></div>
+        </div></div>
+        <div class="architecture-vault-link"><span aria-hidden="true">↕</span><div><strong>Vault Agent ↔ Vault server</strong><small>Outside the Pod: Kubernetes auth and secret reads at runtime.</small></div></div>
+        <p class="architecture-note">The application must be configured to read the mounted files. Retrieved secret values do not enter Helm output or generated ConfigMaps.</p>
+      </figure>
+      <a class="text-link architecture-link" href="https://github.com/dadianas/vault-renderer/blob/main/ARCHITECTURE.md">Read the full architecture and configuration order <span aria-hidden="true">↗</span></a>
+    </div></section>
 
     <section class="section examples-section" id="examples" aria-labelledby="examples-title"><div class="wrap">
       <div class="section-intro"><p class="section-kicker">Use cases</p><h2 id="examples-title">Existing annotations. No mutating webhook.</h2><p>When mutating admission is unavailable or prohibited, keep the chart and environment values intact. Helm's post-render step applies the Agent mutation before the manifests reach Kubernetes. Optional targets cover workloads without annotations.</p></div>
