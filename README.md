@@ -73,7 +73,7 @@ See the [basic example](examples/basic/vault-values.yaml) and [multi-workload ex
 
 ### Reuse any Helm values YAML
 
-The renderer reads only a top-level `vault-injector` section and ignores all other chart values. The filename is arbitrary, so one file can serve Helm and the renderer:
+The renderer reads only a top-level `vault-injector` section and ignores all other chart values. If the section is absent, it uses annotation-discovery defaults, even when the file is passed through `--config` or `VAULT_RENDERER_CONFIG`. The filename is arbitrary, so one file can serve Helm and the renderer:
 
 ```yaml
 # values.yaml
@@ -94,7 +94,7 @@ helm upgrade --install myapp ./chart --namespace production \
 **Helm 3 — environment variable:**
 
 ```sh
-VAULT_RENDERER_CONFIG="$PWD/values.yaml" \
+VAULT_RENDERER_CONFIG=values.yaml \
   helm upgrade --install myapp ./chart --namespace production \
     -f values.yaml --post-renderer ./vault-renderer
 ```
@@ -111,12 +111,12 @@ helm upgrade --install myapp ./chart --namespace production \
   --post-renderer-args=--config=values.yaml
 
 # Environment variable
-VAULT_RENDERER_CONFIG="$PWD/values.yaml" \
+VAULT_RENDERER_CONFIG=values.yaml \
   helm upgrade --install myapp ./chart --namespace production \
     -f values.yaml --post-renderer vault-renderer
 ```
 
-The path must reach both Helm and the renderer because Helm passes only rendered manifests to a post-renderer, not its `-f` arguments or merged values. The `vault-injector` section is validated strictly; unrelated chart values are ignored. A chart with a closed `values.schema.json` may reject a new top-level key before the renderer runs.
+The path must reach both Helm and the renderer because Helm passes only rendered manifests to a post-renderer, not its `-f` arguments or merged values. Relative paths such as `values.yaml` resolve from the command's working directory. The `vault-injector` section is validated strictly when present; unrelated chart values are ignored. A chart with a closed `values.schema.json` may reject a new top-level key before the renderer runs.
 
 `VAULT_RENDERER_NAMESPACE` is **optional** for the basic example because its target has no namespace filter. Set it when a chart omits `metadata.namespace` and you use a target or exclusion with an exact `namespace`. This makes the renderer match against the effective Helm release namespace; it does not change the workload manifest's namespace field.
 

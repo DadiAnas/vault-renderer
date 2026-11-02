@@ -101,8 +101,11 @@ func ParseConfig(data []byte) (Config, error) {
 	if injector != nil && injector.Kind == yaml.AliasNode {
 		injector = injector.Alias
 	}
-	if injector == nil || injector.Kind != yaml.MappingNode {
-		return cfg, fmt.Errorf("vault-injector root is required")
+	if injector == nil {
+		return cfg, nil
+	}
+	if injector.Kind != yaml.MappingNode {
+		return cfg, fmt.Errorf("vault-injector must be a mapping")
 	}
 	var settings map[string]any
 	if err := injector.Decode(&settings); err != nil {

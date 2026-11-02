@@ -151,6 +151,7 @@ func TestMixedValuesKeepRendererSectionStrict(t *testing.T) {
 		"replicaCount: 2\nvault-injector:\n  unknown: value\n",
 		"replicaCount: 2\nvault-injector:\n  enabled: true\n  enabled: false\n",
 		"replicaCount: 2\nvault-injector: {}\nvault-injector: {}\n",
+		"replicaCount: 2\nvault-injector: null\n",
 	} {
 		if _, err := ParseConfig([]byte(input)); err == nil {
 			t.Fatalf("invalid renderer section was accepted: %s", input)
@@ -335,9 +336,13 @@ func TestDisabledConfigurationStillValidates(t *testing.T) {
 	}
 }
 
-func TestRequiresConfigurationRoot(t *testing.T) {
-	if _, err := ParseConfig([]byte("other: true\n")); err == nil {
-		t.Fatal("missing root accepted")
+func TestPlainHelmValuesUseAnnotationDiscoveryDefaults(t *testing.T) {
+	cfg, err := ParseConfig([]byte("replicaCount: 2\nimage: {repository: nginx}\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !cfg.Injector.Enabled || !cfg.Injector.AnnotationDiscovery || len(cfg.Injector.Targets) != 0 {
+		t.Fatalf("plain chart values did not use defaults: %+v", cfg.Injector)
 	}
 }
 

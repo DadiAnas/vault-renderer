@@ -52,6 +52,46 @@ spec:
 	}
 }
 
+func TestPlainHelmValuesConfigDiscoversAnnotations(t *testing.T) {
+	dir := t.TempDir()
+	file := filepath.Join(dir, "values.yaml")
+	if err := os.WriteFile(file, []byte("replicaCount: 2\nimage: {repository: nginx}\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(dir)
+	manifest := `apiVersion: v1
+kind: Pod
+metadata:
+  name: demo
+  annotations:
+    vault.hashicorp.com/agent-inject: "true"
+    vault.hashicorp.com/service: https://vault.example.com
+    vault.hashicorp.com/role: demo
+    vault.hashicorp.com/agent-inject-secret-db: secret/data/demo
+spec:
+  containers: [{name: app, image: nginx}]
+`
+	for _, tc := range []struct {
+		name string
+		args []string
+		env  string
+	}{
+		{name: "inline", args: []string{"--config", "./values.yaml"}},
+		{name: "environment", env: "values.yaml"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv("VAULT_RENDERER_CONFIG", tc.env)
+			var out, diag bytes.Buffer
+			if code := run(tc.args, strings.NewReader(manifest), &out, &diag); code != 0 {
+				t.Fatalf("exit %d: %s", code, diag.String())
+			}
+			if !strings.Contains(out.String(), "name: vault-agent-init") || diag.Len() != 0 {
+				t.Fatalf("stdout=%s stderr=%s", out.String(), diag.String())
+			}
+		})
+	}
+}
+
 func TestValidateRejectsUnknownField(t *testing.T) {
 	file := filepath.Join(t.TempDir(), "bad.yaml")
 	if err := os.WriteFile(file, []byte("vault-injector:\n  enabled: true\n  surprise: true\n"), 0600); err != nil {
