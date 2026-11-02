@@ -83,6 +83,8 @@ vault-injector:
     agent-image: registry.company.example/security/vault:2.0.4
 ```
 
+`default` (singular) is also accepted in place of `defaults`; specify only one spelling.
+
 **Helm 3 — inline post-renderer argument:**
 
 ```sh
@@ -136,7 +138,7 @@ The [full rendered result](examples/multi-workload/rendered.yaml) demonstrates t
 
 **Application consumption:** injection makes files available at the mount path; it does not rewrite the application's configuration or turn files into process environment variables. Set chart values or application options to read the mounted file when the application needs its contents.
 
-Helm merges chart defaults and `-f` environment values before calling the renderer, so the **final rendered Pod annotations** are what discovery reads. The renderer does not receive Helm values directly: keep renderer defaults and targets in a separate environment configuration file passed through `VAULT_RENDERER_CONFIG`. Values resolve in this order: renderer defaults, final Pod template annotations, then matching renderer targets. A target can override a chart annotation; `exclude` and a matching target with `agent-inject: "false"` still disable injection. More specific targets override broader ones; conflicting equally specific values fail. `inject` accepts annotation suffixes or `annotations` with full `vault.hashicorp.com/` keys. Dynamic secret IDs and template expressions are passed to the pinned injector engine for native annotated workloads. The target-only path retains its documented filename restrictions.
+Helm merges chart defaults and `-f` environment values before calling the renderer, so the **final rendered Pod annotations** are what discovery reads. The renderer does not receive Helm values directly: keep optional renderer defaults and targets under `vault-injector` in the same values file or a separate YAML file, passed through `--config` or `VAULT_RENDERER_CONFIG`. Values resolve in this order: renderer defaults, final Pod template annotations, then matching renderer targets. A target can override a chart annotation; `exclude` and a matching target with `agent-inject: "false"` still disable injection. More specific targets override broader ones; conflicting equally specific values fail. `inject` accepts annotation suffixes or `annotations` with full `vault.hashicorp.com/` keys. Dynamic secret IDs and template expressions are passed to the pinned injector engine for native annotated workloads. The target-only path retains its documented filename restrictions.
 
 If an existing annotated chart omits the Vault `service` address, use a small optional renderer configuration:
 

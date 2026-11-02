@@ -146,12 +146,23 @@ vault-injector:
 	}
 }
 
+func TestSingularDefaultAliasSetsAgentImage(t *testing.T) {
+	cfg, err := ParseConfig([]byte("vault-injector:\n  default:\n    agent-image: registry.company.example/security/vault:2.0.4\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Injector.Defaults["agent-image"] != "registry.company.example/security/vault:2.0.4" {
+		t.Fatalf("singular default was not applied: %+v", cfg.Injector.Defaults)
+	}
+}
+
 func TestMixedValuesKeepRendererSectionStrict(t *testing.T) {
 	for _, input := range []string{
 		"replicaCount: 2\nvault-injector:\n  unknown: value\n",
 		"replicaCount: 2\nvault-injector:\n  enabled: true\n  enabled: false\n",
 		"replicaCount: 2\nvault-injector: {}\nvault-injector: {}\n",
 		"replicaCount: 2\nvault-injector: null\n",
+		"vault-injector:\n  default: {agent-image: vault:1}\n  defaults: {agent-image: vault:2}\n",
 	} {
 		if _, err := ParseConfig([]byte(input)); err == nil {
 			t.Fatalf("invalid renderer section was accepted: %s", input)

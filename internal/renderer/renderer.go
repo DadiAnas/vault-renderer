@@ -111,6 +111,13 @@ func ParseConfig(data []byte) (Config, error) {
 	if err := injector.Decode(&settings); err != nil {
 		return cfg, fmt.Errorf("config: %w", err)
 	}
+	if defaults, ok := settings["default"]; ok {
+		if _, duplicate := settings["defaults"]; duplicate {
+			return cfg, fmt.Errorf("config: use either default or defaults, not both")
+		}
+		settings["defaults"] = defaults
+		delete(settings, "default")
+	}
 	section, err := yaml.Marshal(map[string]any{"vault-injector": settings})
 	if err != nil {
 		return cfg, fmt.Errorf("config: %w", err)
