@@ -2,7 +2,7 @@
 
 ## Current release
 
-- **Outcome:** publish the Go renderer as an open-source project at `github.com/dadianas/vault-renderer`, with a GitHub Pages guide and downloadable cross-platform release. The `v0.1.0-beta.3` preview includes default annotation discovery and duplicate ordinary-key handling.
+- **Outcome:** publish the Go renderer as an open-source project at `github.com/dadianas/vault-renderer`, with a GitHub Pages guide and downloadable cross-platform release. The `v0.1.0-beta.4` preview includes default annotation discovery, duplicate ordinary-key handling, and Vault Enterprise namespace annotation support.
 - **Owner / priority:** maintainers / high.
 - **Acceptance evidence:** public repository with a license and clean source history; tests, vet, build, gosec, multi-target fixture, and third-party chart rendering pass; GitHub Pages is live and checked at desktop and mobile widths; a new Compose Vault plus kind Kubernetes test passes; Linux/macOS/Windows binaries and checksums are attached to a verified GitHub release; supported annotations, generic use cases, and example outputs are explained in the README and site.
 - **Impact map:** module import path, CLI build, README links, multi-kind fixtures and rendered output, third-party chart qualification, annotation reference, public documentation, license, GitHub workflows, Pages configuration, Compose test fixture, security scanning, release packaging, and downstream Helm 2/3/4 instructions. No Kubernetes manifests or stored secrets need migration.
@@ -38,7 +38,8 @@
 - **Outcome / owner / priority:** maintainers / high: accept `vault.hashicorp.com/namespace` on rendered workloads and place it in the Vault Agent Kubernetes auto-auth configuration, matching the pinned injector behavior.
 - **Impact map:** annotation validation and precedence, the existing `vault-namespace` alias in optional config, generated Agent HCL and checksums, annotation-only CLI and renderer tests, documentation, release packaging, and downstream Pod startup. No Kubernetes resource migration is needed; a changed Agent HCL checksum can roll selected Pods on upgrade.
 - **Acceptance evidence:** a no-config `webhook-notif` Deployment with a native Vault namespace annotation renders successfully; generated init and sidecar HCL set the namespace on the auth method; external target override wins; existing config alias remains supported; Go tests, vet, gosec, and CLI rendering pass.
-- **Current blocker / next action:** add failing regressions, correct HCL placement, then qualify a preview release. The exact customer chart and Vault Enterprise server are unavailable locally.
+- **Evidence:** `v0.1.0-beta.4` is published with six verified archives and checksums. The `webhook-notif` regression, real Tempo chart via Helm 4 plugin, Vault Agent 1.20.4 configuration startup, Go tests, vet, gosec, and CI passed. See [QUALIFICATION.md](QUALIFICATION.md).
+- **Current blocker / next action:** the exact customer chart and Vault Enterprise server were unavailable locally. Verify the installed preview against those before production admission; Agent configuration parsing alone does not prove Enterprise authentication or secret retrieval.
 
 ## Next compatibility work
 
