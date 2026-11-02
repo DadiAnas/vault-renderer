@@ -2,7 +2,7 @@
 
 ## Current release
 
-- **Outcome:** publish the Go renderer as an open-source project at `github.com/dadianas/vault-renderer`, with a GitHub Pages guide and downloadable cross-platform release. The `v0.1.0-beta.4` preview includes default annotation discovery, duplicate ordinary-key handling, and Vault Enterprise namespace annotation support.
+- **Outcome:** publish the Go renderer as an open-source project at `github.com/dadianas/vault-renderer`, with a GitHub Pages guide and downloadable cross-platform release. The `v0.2.0-beta.1` preview uses the pinned HashiCorp Agent mutation engine for existing annotations.
 - **Owner / priority:** maintainers / high.
 - **Acceptance evidence:** public repository with a license and clean source history; tests, vet, build, gosec, multi-target fixture, and third-party chart rendering pass; GitHub Pages is live and checked at desktop and mobile widths; a new Compose Vault plus kind Kubernetes test passes; Linux/macOS/Windows binaries and checksums are attached to a verified GitHub release; supported annotations, generic use cases, and example outputs are explained in the README and site.
 - **Impact map:** module import path, CLI build, README links, multi-kind fixtures and rendered output, third-party chart qualification, annotation reference, public documentation, license, GitHub workflows, Pages configuration, Compose test fixture, security scanning, release packaging, and downstream Helm 2/3/4 instructions. No Kubernetes manifests or stored secrets need migration.
@@ -43,11 +43,12 @@
 
 ## Injector annotation compatibility batch
 
-- **Outcome / owner / priority:** maintainers / high: support the full pinned vault-k8s 1.7.6 annotation engine for existing annotated charts, including CA/TLS, auth, cache, templates, token sharing, and JSON patches; reject unknown future annotation keys together.
+- **Outcome / owner / priority:** maintainers / high: support the full pinned vault-k8s 1.7.6 annotation engine for existing annotated charts, including CA/TLS, auth, cache, templates, token sharing, and JSON patches; reject unknown future annotation keys together. Present the main use case clearly: organizations that cannot use a mutating admission webhook under their security policy.
 - **Impact map:** replace the annotation-driven mutation path with HashiCorp's pinned Agent library and JSON patch, preserve target-only legacy rendering, map optional overrides, synthesize a projected token for pre-admission rendering, preserve arbitrary manifest fields, update fixtures, docs, license notices, tests, and release packaging. Annotation-driven output moves from a generated ConfigMap to the official Agent environment configuration; this changes Pod specs and rollout checksums on upgrade.
 - **Acceptance evidence:** the full official annotation key inventory is covered; CA/TLS and advanced annotation fixtures render; output is deterministic and idempotent; existing workload fields and container/volume uniqueness are preserved; real chart rendering and local Vault/kind secret retrieval with the official webhook installed pass; Go tests, vet, gosec, and release checksums pass.
 - **Evidence:** the 74 pinned annotation names were compared with the HashiCorp source and captured as an offline test fixture. Six workload-kind paths, startup modes, CA/TLS, cache, token sharing, command hooks, and deterministic multi-secret output have regression checks. A local kind cluster with Vault 1.20.4 and vault-k8s 1.7.6 proved secret retrieval and refresh, webhook coexistence, unchanged-upgrade stability, rollback, trusted private-CA HTTPS, and rejection of an unrelated CA. Go tests, vet, gosec, and govulncheck pass with Go 1.26.10 and patched x/net/x/text. See [QUALIFICATION.md](QUALIFICATION.md).
-- **Current blocker / next action:** finish docs and release packaging for the new architecture. The exact customer chart and Vault Enterprise server are unavailable locally; neither can be claimed as qualified.
+- **Evidence:** `v0.2.0-beta.1` is published with six archive digests verified after upload; its Go CI workflow, including gosec and govulncheck, passed. The generic README, annotation reference, and site now lead with the restricted-admission use case and state that Kubernetes policies still apply.
+- **Current blocker / next action:** the exact customer chart and Vault Enterprise server are unavailable locally. Qualify those paths before production admission; the local run covers representative annotation combinations, not every possible combination.
 
 ## Next compatibility work
 

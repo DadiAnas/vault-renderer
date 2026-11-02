@@ -1,6 +1,8 @@
 # Vault annotations and renderer settings
 
-For a workload whose final Pod template contains `vault.hashicorp.com/agent-inject: "true"`, the renderer uses the **pinned vault-k8s 1.7.6 Agent mutation package**. The tables below cover that version's annotation names; each key is prefixed with `vault.hashicorp.com/`. Dynamic `-ID` and `-PARAMETER` names require a nonempty suffix. [HashiCorp's annotation reference](https://developer.hashicorp.com/vault/docs/deploy/kubernetes/injector/annotations) describes each value in greater depth. Unknown future annotation names are reported together before mutation.
+The main use case is an existing chart with Vault Agent Injector annotations in an environment where mutating admission is unavailable or prohibited by security policy. For a workload whose final Pod template contains `vault.hashicorp.com/agent-inject: "true"`, the renderer uses the **pinned vault-k8s 1.7.6 Agent mutation package** before deployment. Kubernetes admission and workload security policies still apply to the rendered manifests.
+
+The tables below cover that version's annotation names; each key is prefixed with `vault.hashicorp.com/`. Dynamic `-ID` and `-PARAMETER` names require a nonempty suffix. [HashiCorp's annotation reference](https://developer.hashicorp.com/vault/docs/deploy/kubernetes/injector/annotations) describes each value in greater depth. Unknown future annotation names are reported together before mutation.
 
 Helm applies chart defaults and environment values before the renderer sees the manifests. Renderer defaults are applied first, final Pod annotations next, and matching external target overrides last. `exclude` and a target with `agent-inject: "false"` disable injection. This precedence applies to native annotations without trying to discover which values file produced them.
 

@@ -4,6 +4,8 @@
 
 `vault-renderer` is a standalone Go [Helm post-renderer](https://helm.sh/docs/topics/advanced/#post-rendering) for selected Kubernetes workloads. For workloads already using Vault Agent Injector annotations, it applies the pinned HashiCorp injector mutation engine before deployment. Optional target-only configuration keeps the original ConfigMap-based renderer path. Vault retrieves secrets when the Pod runs; the renderer does not contact Vault.
 
+**Main use case:** your organization already uses Vault Agent Injector annotations, but mutating admission webhooks are unavailable or prohibited by its security policy. Add this post-renderer to the Helm deployment. The chart and environment values keep their existing annotations; the Agent mutations become visible in Helm's rendered release before Kubernetes receives it. Kubernetes admission and workload security policies still apply to those manifests.
+
 **Status:** offline Helm 2/3/4 rendering and local Kubernetes/Vault flows, including private-CA HTTPS, have been tested. Native annotation handling is pinned to vault-k8s 1.7.6; the intended environment and every annotation combination have not been qualified. See [ROADMAP.md](ROADMAP.md) for release gates.
 
 ## Build and use

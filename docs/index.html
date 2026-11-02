@@ -37,12 +37,12 @@
       <div class="hero-copy">
         <div class="eyebrow"><span class="status-dot" aria-hidden="true"></span> Open source · Go CLI · Helm 2 / 3 / 4</div>
         <h1 id="hero-title">Secrets belong <em>in the Pod.</em><br>Not in the chart.</h1>
-        <p class="hero-lead">Inject Vault Agent into the workloads you choose, after Helm renders and before Kubernetes deploys. Keep third-party chart templates untouched.</p>
+        <p class="hero-lead">Keep using your Vault Injector annotations when security policy does not allow a mutating webhook. Apply the Agent mutations after Helm renders and before Kubernetes deploys, with chart templates untouched.</p>
         <div class="hero-actions">
           <a class="button button-primary" href="#quickstart">See the quickstart <span aria-hidden="true">↘</span></a>
           <a class="button button-secondary" href="https://github.com/dadianas/vault-renderer">Explore the source <span aria-hidden="true">↗</span></a>
         </div>
-        <p class="hero-note">Local Kubernetes + Vault tests passed. Production admission depends on your environment.</p>
+        <p class="hero-note">Rendered workloads remain subject to Kubernetes admission and security policy. Local Kubernetes + Vault tests passed; production admission depends on your environment.</p>
       </div>
 
       <div class="pipeline" role="img" aria-label="Rendering pipeline: Helm manifests with Vault annotations become an injected Pod with Agent configuration. Vault Agent retrieves secrets at runtime.">
@@ -75,16 +75,16 @@
     <section class="section wrap" id="how-it-works" aria-labelledby="how-title">
       <div class="section-intro"><p class="section-kicker">The boundary</p><h2 id="how-title">A post-render step with a clear job.</h2><p>Helm still renders the chart. The renderer changes only selected workload manifests and adds the Agent configuration they need.</p></div>
       <div class="steps">
-        <article class="step"><span class="step-index">01</span><div class="step-icon" aria-hidden="true">⌁</div><h3>Select</h3><p>Match a workload by name, namespace, labels, or annotations. Exclusions always win; an empty target list injects nothing by default.</p></article>
+        <article class="step"><span class="step-index">01</span><div class="step-icon" aria-hidden="true">⌁</div><h3>Select</h3><p>Discover existing Vault annotations by default. Optional selectors can add workloads by name, namespace, labels, or annotations; exclusions always win.</p></article>
         <article class="step"><span class="step-index">02</span><div class="step-icon" aria-hidden="true">⇢</div><h3>Render</h3><p>Use HashiCorp's pinned annotation engine to add Agent containers, projected auth, and memory-backed volumes. Target-only selection can still generate a ConfigMap.</p></article>
         <article class="step"><span class="step-index">03</span><div class="step-icon" aria-hidden="true">◈</div><h3>Retrieve</h3><p>After deployment, Vault Agent authenticates through the Pod’s ServiceAccount and writes secret files inside the Pod. Retrieved values stay out of Helm resources.</p></article>
       </div>
     </section>
 
     <section class="section examples-section" id="examples" aria-labelledby="examples-title"><div class="wrap">
-      <div class="section-intro"><p class="section-kicker">Use cases</p><h2 id="examples-title">Target the workload, not the chart.</h2><p>Keep the upstream chart intact. An external file decides which workloads receive which Vault role, secret paths, and startup mode.</p></div>
+      <div class="section-intro"><p class="section-kicker">Use cases</p><h2 id="examples-title">Existing annotations. No mutating webhook.</h2><p>When mutating admission is unavailable or prohibited, keep the chart and environment values intact. Helm's post-render step applies the Agent mutation before the manifests reach Kubernetes. Optional targets cover workloads without annotations.</p></div>
       <div class="steps use-case-cards">
-        <article class="step"><span class="step-index">A</span><div class="step-icon" aria-hidden="true">▦</div><h3>Third-party chart</h3><p>Keep its existing Vault annotations and values. Add the post-renderer to apply the pinned injector mutations before deployment.</p></article>
+        <article class="step"><span class="step-index">A</span><div class="step-icon" aria-hidden="true">▦</div><h3>Restricted admission</h3><p>Use existing Vault annotations without installing a mutating webhook. Review the changed Helm manifests before deployment.</p></article>
         <article class="step"><span class="step-index">B</span><div class="step-icon" aria-hidden="true">◇</div><h3>Different roles</h3><p>Give an API, worker, and scheduled Job separate Vault roles and secret paths. Labels and annotations can select groups of workloads.</p></article>
         <article class="step"><span class="step-index">C</span><div class="step-icon" aria-hidden="true">⇢</div><h3>Different timing</h3><p>Use init-only for a short Job, init plus sidecar for a long-running service, or sidecar-only when startup need not wait for a file.</p></article>
       </div>
