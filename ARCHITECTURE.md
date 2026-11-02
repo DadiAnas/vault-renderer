@@ -41,7 +41,7 @@ The optional renderer section can be in the same YAML passed to Helm with `-f`. 
 ## 2. Secret retrieval at Pod runtime
 
 ```mermaid
-flowchart LR
+flowchart TD
     subgraph pod[Application Pod]
         token[Projected ServiceAccount token] --> agent[Vault Agent init and/or sidecar]
         agent --> files[Memory-backed shared secret files]
