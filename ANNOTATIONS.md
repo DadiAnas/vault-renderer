@@ -70,6 +70,8 @@ At the <code>vault-injector</code> root, <code>enabled</code> controls the featu
 
 For Deployment/payment-api in namespace production, the example generates ConfigMap/payment-api-deployment-vault-agent in production. It contains agent-init.hcl and agent.hcl, not fetched values. The Pod template receives the ConfigMap mount, a projected ServiceAccount token for Agent, a memory-backed vault-secrets volume, the selected application mount, Agent containers, and a checksum annotation. [See the full six-kind rendered example](examples/multi-workload/rendered.yaml).
 
+The application must read the mounted file or be configured through chart values to use it. The renderer does not modify application command lines, configuration files, or process environment variables.
+
 ## Explicitly unsupported
 
 Agent cache, token sharing, extra-secret mounts, JSON patches, command hooks, TLS skip verification, custom PodSpec paths, and many other official annotations are not implemented. Unknown keys fail rather than silently approximating the official injector. See [ROADMAP.md](ROADMAP.md) for planned work.

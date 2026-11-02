@@ -124,6 +124,7 @@ code { font-size: .88em; }
 .result-list li strong { font: 700 15px var(--display); }
 .result-list li span { text-align: left; }
 .example-result-links { display: flex; flex-wrap: wrap; gap: 18px; padding: 17px 25px; border-top: 1px solid #d6e4e2; }
+.example-caveat { margin: 0; padding: 16px 25px; border-top: 1px solid #d6e4e2; color: #4c6370; background: #f4f8f8; font-size: 13px; }
 .example-result-links a { color: var(--teal); text-decoration: none; font-size: 12px; font-weight: 700; }
 .example-result-links a:hover { text-decoration: underline; }
 
