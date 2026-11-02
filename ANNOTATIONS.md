@@ -26,6 +26,7 @@ Existing <code>vault.hashicorp.com/*</code> annotations on a selected workload's
 | Suffix | Effect | Default or rule |
 | --- | --- | --- |
 | <code>role</code> | Vault Kubernetes auth role used by Agent. | Required for every injected workload. |
+| <code>namespace</code> | Vault Enterprise namespace used by Agent's Kubernetes auto-auth method. | Optional; distinct from the Kubernetes release namespace. |
 | <code>service</code> | Vault address; overrides vault-addr. | HTTPS required unless allow-http is explicitly true. |
 | <code>agent-image</code> | Image for both Agent containers. | hashicorp/vault:1.20.4; image must provide /bin/vault. |
 | <code>agent-inject</code> | Enable or disable injection for a selected workload. | Annotation discovery requires "true" on the Pod template by default. A matching target can override the final annotation. |
@@ -56,7 +57,7 @@ These keys are accepted in <code>defaults</code> or a target's <code>inject</cod
 | --- | --- | --- |
 | <code>vault-addr</code> | Vault URL used in Agent HCL. | Required unless service supplies it. |
 | <code>auth-path</code> | Vault Kubernetes auth mount path. | auth/kubernetes. |
-| <code>vault-namespace</code> | Vault Enterprise namespace in Agent HCL. | Unset. |
+| <code>vault-namespace</code> | Alias for the native <code>namespace</code> setting in optional renderer config. | Unset; an explicit target override takes priority over a rendered <code>vault.hashicorp.com/namespace</code> annotation. |
 | <code>token-audience</code> | Audience for the projected Kubernetes ServiceAccount token. | vault; bind the Vault role to the same audience. |
 | <code>token-expiration</code> | Projected token lifetime in seconds. | 3600; allowed 600–86400. |
 | <code>mount-path</code> | Shared memory-backed secret volume path. | /vault/secrets; absolute, clean path. |
@@ -67,6 +68,8 @@ These keys are accepted in <code>defaults</code> or a target's <code>inject</cod
 No renderer configuration file is needed for discovery. At the optional <code>vault-injector</code> root, <code>enabled</code> defaults to true; <code>targets</code> contains additional selectors; <code>exclude</code> always wins. Annotation discovery is on by default for workloads with a Pod-template <code>vault.hashicorp.com/agent-inject: "true"</code>; set <code>annotationDiscovery: false</code> to turn it off. <code>mode: all</code> explicitly selects all supported workload kinds except standard Kubernetes system namespaces. <code>namePrefix</code> and <code>labels</code> customize generated ConfigMap metadata. Selectors inspect **workload** metadata, while annotation discovery inspects the **Pod template**. Renderer settings come from a separate config file; Helm does not pass its values to a post-renderer directly. A chart that depends on the installed injector's default Vault address needs a <code>service</code> annotation or an optional renderer <code>vault-addr</code> default, because that address cannot be learned from rendered manifests.
 
 <code>VAULT_RENDERER_NAMESPACE</code> (or <code>render --namespace</code>) is optional for targets without a namespace filter. Set it when a chart omits <code>metadata.namespace</code> and a target or exclusion matches an exact release namespace. The renderer never assumes default.
+
+This release namespace selects the Kubernetes namespace for matching and generated ConfigMaps. <code>vault.hashicorp.com/namespace</code> selects the Vault Enterprise namespace for Agent authentication. They are independent.
 
 ## Generated result
 

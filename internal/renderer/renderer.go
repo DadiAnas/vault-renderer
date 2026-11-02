@@ -166,6 +166,9 @@ func normalize(input map[string]any) (map[string]string, error) {
 	out := map[string]string{}
 	set := func(key, value string) error {
 		key = strings.TrimPrefix(key, prefix)
+		if key == "vault-namespace" {
+			key = "namespace"
+		}
 		if old, exists := out[key]; exists && old != value {
 			return fmt.Errorf("conflicting inject setting %q", key)
 		}
@@ -203,7 +206,7 @@ func normalize(input map[string]any) (map[string]string, error) {
 func validateSettings(s map[string]string) error {
 	for key, val := range s {
 		switch {
-		case key == "role", key == "vault-addr", key == "service", key == "auth-path", key == "agent-image", key == "vault-namespace", key == "token-audience", key == "mount-path", key == "volume-name", key == "agent-inject-containers", key == "tls-secret", key == "tls-ca-cert":
+		case key == "role", key == "vault-addr", key == "service", key == "auth-path", key == "agent-image", key == "namespace", key == "vault-namespace", key == "token-audience", key == "mount-path", key == "volume-name", key == "agent-inject-containers", key == "tls-secret", key == "tls-ca-cert":
 			if val == "" {
 				return fmt.Errorf("%s cannot be empty", key)
 			}
@@ -247,6 +250,9 @@ func validateSettings(s map[string]string) error {
 	}
 	if (s["tls-secret"] == "") != (s["tls-ca-cert"] == "") {
 		return fmt.Errorf("tls-secret and tls-ca-cert must be supplied together")
+	}
+	if s["namespace"] != "" && s["vault-namespace"] != "" && s["namespace"] != s["vault-namespace"] {
+		return fmt.Errorf("namespace and vault-namespace conflict")
 	}
 	return nil
 }
@@ -490,6 +496,9 @@ func Render(input []byte, cfg Config, releaseNamespace string) ([]byte, error) {
 		}
 		settings := map[string]string{"auth-path": "auth/kubernetes", "agent-image": "hashicorp/vault:1.20.4", "agent-pre-populate": "true", "agent-pre-populate-only": "false", "mount-path": "/vault/secrets", "volume-name": "vault-secrets", "token-audience": "vault", "token-expiration": "3600", "agent-requests-cpu": "250m", "agent-limits-cpu": "500m", "agent-requests-mem": "64Mi", "agent-limits-mem": "128Mi"}
 		for k, v := range cfg.Injector.Defaults {
+			if k == "vault-namespace" {
+				k = "namespace"
+			}
 			settings[k] = v
 		}
 		for k, v := range podAnns {
@@ -821,15 +830,15 @@ func agentHCL(s map[string]string, ids []string, secrets map[string]string, init
 		addr = s["service"]
 	}
 	vault.SetAttributeValue("address", cty.StringVal(addr))
-	if s["vault-namespace"] != "" {
-		vault.SetAttributeValue("namespace", cty.StringVal(s["vault-namespace"]))
-	}
 	if s["tls-secret"] != "" {
 		vault.SetAttributeValue("ca_cert", cty.StringVal("/vault/tls/"+s["tls-ca-cert"]))
 	}
 	auth := root.AppendNewBlock("auto_auth", nil).Body()
 	method := auth.AppendNewBlock("method", []string{"kubernetes"}).Body()
 	method.SetAttributeValue("mount_path", cty.StringVal(s["auth-path"]))
+	if s["namespace"] != "" {
+		method.SetAttributeValue("namespace", cty.StringVal(s["namespace"]))
+	}
 	method.SetAttributeValue("config", cty.ObjectVal(map[string]cty.Value{"role": cty.StringVal(s["role"]), "token_path": cty.StringVal("/vault/token/token")}))
 	if interval := s["template-static-secret-render-interval"]; interval != "" {
 		root.AppendNewBlock("template_config", nil).Body().SetAttributeValue("static_secret_render_interval", cty.StringVal(interval))

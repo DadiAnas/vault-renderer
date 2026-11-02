@@ -120,7 +120,7 @@ Reference: [Vault Agent Injector annotations](https://developer.hashicorp.com/va
 
 | Annotation suffix / feature | Status | Notes |
 | --- | --- | --- |
-| `role`, `service`, `agent-image`, `agent-inject-secret-*`, `agent-inject-template-*`, `agent-inject-default-template`, `agent-inject-file-*`, `agent-inject-perms-*`, `agent-inject-containers`, `agent-requests-*`, `agent-limits-*`, `template-static-secret-render-interval` | Supported | Native Pod annotations or external config; `service` maps to Vault address. Default template is `map`; `json` is optional. Resource suffixes: `cpu`, `mem`, `ephemeral`. |
+| `role`, `namespace`, `service`, `agent-image`, `agent-inject-secret-*`, `agent-inject-template-*`, `agent-inject-default-template`, `agent-inject-file-*`, `agent-inject-perms-*`, `agent-inject-containers`, `agent-requests-*`, `agent-limits-*`, `template-static-secret-render-interval` | Supported | Native Pod annotations or external config; `namespace` is the Vault Enterprise namespace, distinct from the Kubernetes release namespace. `service` maps to Vault address. Default template is `map`; `json` is optional. Resource suffixes: `cpu`, `mem`, `ephemeral`. |
 | `agent-pre-populate`, `agent-pre-populate-only`, `agent-init-first`, `agent-inject` | Supported | Init-only, init+sidecar, sidecar-only, init order, disabled. |
 | `agent-inject-status` | Coexistence only | Renderer outputs `injected`; preexisting official injection is rejected. |
 | `auth-path`, `vault-addr`, `vault-namespace`, `token-audience`, `token-expiration`, `mount-path`, `volume-name`, `tls-secret`, `tls-ca-cert`, `agent-run-as-user`, `agent-run-as-group`, `allow-http` | Renderer settings | Some are custom configuration keys rather than official annotation names. |

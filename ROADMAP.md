@@ -33,6 +33,13 @@
 - **Evidence:** the reported duplicate-key error was reproduced in a renderer regression test. Ordinary keys now use the last value; duplicate Vault annotations fail with line numbers; optional config parsing remains strict. Go tests, vet, gosec, and a no-config CLI render with both repeated labels pass. `v0.1.0-beta.3` is published; uploaded archive digests match the verified local checksums.
 - **Current blocker / next action:** no blocker for the reported key pattern. The user's exact chart was not provided; qualify that chart and intended environment before production admission.
 
+## Vault Enterprise namespace annotation
+
+- **Outcome / owner / priority:** maintainers / high: accept `vault.hashicorp.com/namespace` on rendered workloads and place it in the Vault Agent Kubernetes auto-auth configuration, matching the pinned injector behavior.
+- **Impact map:** annotation validation and precedence, the existing `vault-namespace` alias in optional config, generated Agent HCL and checksums, annotation-only CLI and renderer tests, documentation, release packaging, and downstream Pod startup. No Kubernetes resource migration is needed; a changed Agent HCL checksum can roll selected Pods on upgrade.
+- **Acceptance evidence:** a no-config `webhook-notif` Deployment with a native Vault namespace annotation renders successfully; generated init and sidecar HCL set the namespace on the auth method; external target override wins; existing config alias remains supported; Go tests, vet, gosec, and CLI rendering pass.
+- **Current blocker / next action:** add failing regressions, correct HCL placement, then qualify a preview release. The exact customer chart and Vault Enterprise server are unavailable locally.
+
 ## Next compatibility work
 
 - Expand supported Vault Agent Injector annotations with tests for each new setting.

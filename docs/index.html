@@ -123,6 +123,7 @@ helm upgrade --install payment ./chart \
       <div class="section-intro"><p class="section-kicker">Configuration reference</p><h2 id="annotations-title">Supported annotations, explained.</h2><p>The renderer detects <code>agent-inject: "true"</code> on final rendered Pod templates by default. Helm applies environment values first; matching renderer targets can then override supported annotations. Write short suffixes in a target's <code>inject</code> map, or full <code>vault.hashicorp.com/…</code> names under <code>inject.annotations</code>. Unknown keys fail validation. The table describes the supported subset.</p></div>
       <div class="annotation-card"><div class="annotation-card-head"><strong>Vault annotation suffix</strong><span>What the renderer does</span></div><div class="table-scroll"><table><tbody>
         <tr><th scope="row"><code>role</code></th><td>Uses this Vault Kubernetes auth role. Required for injection.</td></tr>
+        <tr><th scope="row"><code>namespace</code></th><td>Sets the Vault Enterprise namespace on Agent authentication; separate from the Kubernetes release namespace.</td></tr>
         <tr><th scope="row"><code>service</code></th><td>Overrides the Vault address. HTTPS is required by default.</td></tr>
         <tr><th scope="row"><code>agent-image</code></th><td>Sets the image used by both Agent containers.</td></tr>
         <tr><th scope="row"><code>agent-inject</code></th><td>An explicit <code>"false"</code> disables injection for the workload.</td></tr>

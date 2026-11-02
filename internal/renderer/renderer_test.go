@@ -641,6 +641,74 @@ func TestDiscoveredUnsupportedAnnotationFails(t *testing.T) {
 	}
 }
 
+func TestVaultEnterpriseNamespaceFromAnnotationAndTargetOverride(t *testing.T) {
+	input := strings.Replace(deployment, "payment-api", "webhook-notif", 1)
+	input = strings.Replace(input, "annotations: {other: keep}", `annotations: {vault.hashicorp.com/agent-inject: "true", vault.hashicorp.com/service: https://vault.example.com, vault.hashicorp.com/role: webhook-notif, vault.hashicorp.com/namespace: engineering/dev, vault.hashicorp.com/agent-inject-secret-config: secret/data/webhook-notif}`, 1)
+	for _, tc := range []struct {
+		name string
+		cfg  Config
+		want string
+	}{
+		{name: "native annotation", cfg: DefaultConfig(), want: "engineering/dev"},
+		{name: "annotation beats default alias", cfg: mustParseConfig(t, `vault-injector:
+  defaults: {vault-namespace: engineering/default}
+`), want: "engineering/dev"},
+		{name: "legacy target alias", cfg: mustParseConfig(t, `vault-injector:
+  targets:
+    - kind: Deployment
+      name: webhook-notif
+      inject: {vault-namespace: engineering/prod}
+`), want: "engineering/prod"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			out, err := Render([]byte(input), tc.cfg, "production")
+			if err != nil {
+				t.Fatal(err)
+			}
+			var cm map[string]any
+			if err := yaml.Unmarshal(out, &cm); err != nil {
+				t.Fatal(err)
+			}
+			if object(cm, "metadata")["namespace"] != "production" {
+				t.Fatal("Kubernetes namespace was replaced by Vault namespace")
+			}
+			for _, filename := range []string{"agent-init.hcl", "agent.hcl"} {
+				raw := cm["data"].(map[string]any)[filename].(string)
+				file, diags := hclsyntax.ParseConfig([]byte(raw), filename, hcl.Pos{Line: 1, Column: 1})
+				if diags.HasErrors() {
+					t.Fatal(diags)
+				}
+				body := file.Body.(*hclsyntax.Body)
+				for _, block := range body.Blocks {
+					if block.Type == "vault" && block.Body.Attributes["namespace"] != nil {
+						t.Fatal("Vault namespace was placed in the vault block")
+					}
+					if block.Type == "auto_auth" {
+						method := block.Body.Blocks[0]
+						attr := method.Body.Attributes["namespace"]
+						if attr == nil {
+							t.Fatal("Vault namespace missing from auth method")
+						}
+						value, diags := attr.Expr.Value(nil)
+						if diags.HasErrors() || value.AsString() != tc.want {
+							t.Fatalf("auth namespace = %v, want %s: %v", value, tc.want, diags)
+						}
+					}
+				}
+			}
+		})
+	}
+}
+
+func mustParseConfig(t *testing.T, input string) Config {
+	t.Helper()
+	cfg, err := ParseConfig([]byte(input))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return cfg
+}
+
 func TestDiscoveredAnnotationWithoutVaultAddressExplainsMissingDefault(t *testing.T) {
 	input := strings.Replace(deployment, "annotations: {other: keep}", "annotations: {vault.hashicorp.com/agent-inject: \"true\", vault.hashicorp.com/role: payment, vault.hashicorp.com/agent-inject-secret-db: secret/data/payment}", 1)
 	_, err := Render([]byte(input), DefaultConfig(), "")
