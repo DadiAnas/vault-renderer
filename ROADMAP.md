@@ -2,7 +2,7 @@
 
 ## Current release
 
-- **Outcome:** publish the Go renderer as an open-source project at `github.com/dadianas/vault-renderer`, with a GitHub Pages guide and downloadable cross-platform release. The `v0.2.0-beta.1` preview uses the pinned HashiCorp Agent mutation engine for existing annotations.
+- **Outcome:** publish the Go renderer as an open-source project at `github.com/dadianas/vault-renderer`, with a GitHub Pages guide and downloadable cross-platform release. The `v0.2.0-beta.2` preview also accepts mixed Helm values YAML as optional renderer configuration.
 - **Owner / priority:** maintainers / high.
 - **Acceptance evidence:** public repository with a license and clean source history; tests, vet, build, gosec, multi-target fixture, and third-party chart rendering pass; GitHub Pages is live and checked at desktop and mobile widths; a new Compose Vault plus kind Kubernetes test passes; Linux/macOS/Windows binaries and checksums are attached to a verified GitHub release; supported annotations, generic use cases, and example outputs are explained in the README and site.
 - **Impact map:** module import path, CLI build, README links, multi-kind fixtures and rendered output, third-party chart qualification, annotation reference, public documentation, license, GitHub workflows, Pages configuration, Compose test fixture, security scanning, release packaging, and downstream Helm 2/3/4 instructions. No Kubernetes manifests or stored secrets need migration.
@@ -56,7 +56,8 @@
 - **Impact map:** config parsing and strict validation of the `vault-injector` subtree, CLI config-file loading, native annotation precedence, tests, generic documentation, and Helm 3/4 invocation examples. Helm's post-renderer contract still supplies manifests only, so the values path must also be passed through an environment variable or post-renderer argument.
 - **Acceptance evidence:** a mixed values file drives the private Agent image in both init and sidecar; unrelated chart values are ignored by the renderer; unknown or duplicate renderer keys still fail; Go tests, vet, gosec, govulncheck, and a Helm chart render pass.
 - **Evidence:** mixed chart values, unrelated duplicate keys, an external YAML anchor, strict renderer-key rejection, and the CLI environment-variable path have tests. The official Tempo chart rendered through Helm 4 using the same arbitrary YAML for `-f` and `--config`; init and sidecar used the private Agent image. `VAULT_RENDERER_CONFIG` produced byte-identical output to `--config`. Go tests, vet, gosec, and govulncheck passed; the site was checked at mobile width without overflow.
-- **Current blocker / next action:** publish the patch preview and verify its release assets and live docs. Exact `-f`-only invocation remains impossible under Helm's post-renderer stdin/stdout contract; the same file must also be named in an environment variable or post-renderer argument.
+- **Evidence:** `v0.2.0-beta.2` is published; all seven uploaded asset digests match the local files, CI passed, and the Pages build is live. Linux amd64/arm64 and macOS arm64 version commands ran; the Linux amd64 binary rendered the private Agent image in a real Tempo chart. The same mixed YAML remains accepted through either `--config` or `VAULT_RENDERER_CONFIG`.
+- **Current blocker / next action:** no blocker for one-file configuration. Exact `-f`-only invocation remains impossible under Helm's post-renderer stdin/stdout contract; the same file must also be named in an environment variable or post-renderer argument. Qualify the user's chart and registry credentials in the intended environment.
 
 ## Next compatibility work
 
