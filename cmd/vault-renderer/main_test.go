@@ -68,4 +68,22 @@ func TestHelm2ChartPackagesRenderedManifestsWithoutReevaluatingVaultTemplates(t 
 	if _, err := os.Stat(filepath.Join(output, "Chart.yaml")); err != nil {
 		t.Fatal(err)
 	}
+	for _, name := range []string{"", "files", "templates"} {
+		info, err := os.Stat(filepath.Join(output, name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if info.Mode().Perm() != 0700 {
+			t.Errorf("%s mode = %04o, want 0700", name, info.Mode().Perm())
+		}
+	}
+	for _, name := range []string{"Chart.yaml", "files/rendered.yaml", "templates/rendered.yaml"} {
+		info, err := os.Stat(filepath.Join(output, name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if info.Mode().Perm() != 0600 {
+			t.Errorf("%s mode = %04o, want 0600", name, info.Mode().Perm())
+		}
+	}
 }

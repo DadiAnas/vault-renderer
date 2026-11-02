@@ -1,0 +1,57 @@
+vault-injector:
+  enabled: true
+  defaults:
+    vault-addr: https://vault.example.com
+    auth-path: auth/kubernetes
+    agent-image: hashicorp/vault:1.20.4
+  targets:
+    - kind: Deployment
+      namespace: production
+      name: payment-api
+      inject:
+        role: payment-api
+        agent-inject-secret-database: secret/data/payment/database
+        agent-inject-file-database: database.env
+        agent-inject-template-database: |
+          {{- with secret "secret/data/payment/database" -}}
+          DB_USERNAME={{ .Data.data.username }}
+          DB_PASSWORD={{ .Data.data.password }}
+          {{- end }}
+    - kind: StatefulSet
+      name: payment-worker
+      inject:
+        role: payment-worker
+        agent-pre-populate-only: "true"
+        agent-inject-secret-redis: secret/data/payment/redis
+        agent-inject-file-redis: redis.env
+    - kind: DaemonSet
+      labelSelector:
+        matchExpressions:
+          - key: vault-injection
+            operator: In
+            values: [enabled]
+      inject:
+        role: node-reader
+        agent-pre-populate: "false"
+        agent-inject-secret-node: secret/data/platform/node
+    - kind: Job
+      name: payment-migration
+      inject:
+        annotations:
+          vault.hashicorp.com/role: payment-migration
+          vault.hashicorp.com/agent-inject-secret-schema: secret/data/payment/schema
+    - kind: CronJob
+      name: nightly-report
+      inject:
+        role: nightly-report
+        agent-inject-secret-report: secret/data/payment/report
+    - kind: Pod
+      annotationSelector:
+        matchAnnotations:
+          example.com/vault: "yes"
+      inject:
+        role: toolbox
+        agent-inject-secret-tools: secret/data/platform/tools
+  exclude:
+    - kind: DaemonSet
+      name: legacy-agent

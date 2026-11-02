@@ -41,3 +41,11 @@ For the negative test, a different CA was mounted into a new revision. The new P
 The first Vault chart upgrade in this run hit a Helm 4 server-side apply conflict on the injector webhook's controller-managed `caBundle`. Repeating that chart upgrade with `--server-side=false` succeeded. This was a Vault chart lifecycle issue, separate from the renderer's payment release.
 
 The second cluster, its in-cluster Secrets/PVC, local CA keys, and temporary kubeconfig were deleted after the checks. This local result does not qualify the intended production environment.
+
+## External Compose Vault + kind — 2026-11-02
+
+A third isolated kind v0.33.0 / Kubernetes v1.37.0 cluster used a Vault 1.20.4 dev server from [dev/compose.yaml](dev/compose.yaml), attached to kind's Docker network. Vault was reachable from the Pod through that network; the Kubernetes API server was reachable from Vault at its Docker-network IP with its certificate authority. A scoped reviewer ServiceAccount received `system:auth-delegator` for the test, and Vault's Kubernetes auth role bound the application ServiceAccount, namespace, and `vault` audience. The renderer created no reviewer RBAC.
+
+Helm 4 installed the rendered `payment-api` Deployment with `--wait`. The Pod reached 2/2 Running with one init Agent, the application, and one sidecar Agent. The application read the initial synthetic KV value; after an external Vault update, the sidecar refreshed the file. The generated ConfigMap contained no retrieved value. This qualified the external-Vault network path, not production admission.
+
+The Compose project and kind cluster were removed. The temporary reviewer JWT, Kubernetes CA copy, kubeconfig, and renderer test configuration were deleted. Unrelated Docker containers remained running.

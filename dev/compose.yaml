@@ -1,0 +1,21 @@
+# Disposable local qualification only. Create a kind cluster first and set VAULT_DEV_ROOT_TOKEN_ID.
+services:
+  vault:
+    image: hashicorp/vault:1.20.4
+    command: ["server", "-dev", "-dev-listen-address=0.0.0.0:8200"]
+    environment:
+      VAULT_ADDR: http://127.0.0.1:8200
+      VAULT_DEV_ROOT_TOKEN_ID: ${VAULT_DEV_ROOT_TOKEN_ID:?set a disposable local root token}
+    ports:
+      - 127.0.0.1:18220:8200
+    networks:
+      - kind
+    healthcheck:
+      test: ["CMD", "vault", "status"]
+      interval: 3s
+      timeout: 2s
+      retries: 20
+
+networks:
+  kind:
+    external: true

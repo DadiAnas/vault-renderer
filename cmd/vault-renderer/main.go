@@ -52,9 +52,19 @@ func run(args []string, in io.Reader, out, diag io.Writer) int {
 		fmt.Fprintln(diag, "--config or VAULT_RENDERER_CONFIG is required")
 		return 2
 	}
-	data, err := os.ReadFile(*configPath)
+	configRoot, err := os.OpenRoot(filepath.Dir(*configPath))
 	if err != nil {
 		fmt.Fprintln(diag, err)
+		return 1
+	}
+	data, err := configRoot.ReadFile(filepath.Base(*configPath))
+	closeErr := configRoot.Close()
+	if err != nil {
+		fmt.Fprintln(diag, err)
+		return 1
+	}
+	if closeErr != nil {
+		fmt.Fprintln(diag, closeErr)
 		return 1
 	}
 	cfg, err := renderer.ParseConfig(data)
@@ -104,17 +114,23 @@ func run(args []string, in io.Reader, out, diag io.Writer) int {
 	return 0
 }
 
-func packageHelm2Chart(manifests []byte, outputDir string) (err error) {
-	if err = os.Mkdir(outputDir, 0755); err != nil {
+func packageHelm2Chart(manifests []byte, outputDir string) error {
+	parent, err := os.OpenRoot(filepath.Dir(outputDir))
+	if err != nil {
+		return fmt.Errorf("open Helm 2 chart parent: %w", err)
+	}
+	defer parent.Close()
+	name := filepath.Base(outputDir)
+	if err := parent.Mkdir(name, 0700); err != nil {
 		return fmt.Errorf("create Helm 2 chart: %w", err)
 	}
-	defer func() {
-		if err != nil {
-			os.RemoveAll(outputDir)
-		}
-	}()
+	output, err := parent.OpenRoot(name)
+	if err != nil {
+		return err
+	}
+	defer output.Close()
 	for _, sub := range []string{"files", "templates"} {
-		if err = os.Mkdir(filepath.Join(outputDir, sub), 0755); err != nil {
+		if err = output.Mkdir(sub, 0700); err != nil {
 			return err
 		}
 	}
@@ -124,7 +140,7 @@ func packageHelm2Chart(manifests []byte, outputDir string) (err error) {
 		"templates/rendered.yaml": []byte("{{ .Files.Get \"files/rendered.yaml\" }}\n"),
 	}
 	for name, data := range files {
-		if err = os.WriteFile(filepath.Join(outputDir, name), data, 0644); err != nil {
+		if err = output.WriteFile(name, data, 0600); err != nil {
 			return err
 		}
 	}

@@ -1,12 +1,14 @@
 # vault-renderer
 
-[Website](https://dadianas.github.io/vault-renderer/) · [License](LICENSE) · [Roadmap](ROADMAP.md)
+[Website](https://dadianas.github.io/vault-renderer/) · [Releases](https://github.com/dadianas/vault-renderer/releases) · [Annotations](ANNOTATIONS.md) · [Examples](examples/multi-workload/targets.yaml) · [License](LICENSE) · [Roadmap](ROADMAP.md)
 
 `vault-renderer` is a standalone Go [Helm post-renderer](https://helm.sh/docs/topics/advanced/#post-rendering) for selected Kubernetes workloads. It generates Vault Agent configuration in a ConfigMap and adds an init container, a sidecar, or both. Vault retrieves secrets when the Pod runs; the renderer does not contact Vault.
 
 **Status:** offline Helm 2/3/4 rendering and local Kubernetes/Vault flows, including private-CA HTTPS, have been tested. Broader annotation compatibility and deployment in the intended environment remain open. See [ROADMAP.md](ROADMAP.md) for release gates.
 
 ## Build and use
+
+Prebuilt Linux, macOS, and Windows archives are available on the [Releases page](https://github.com/dadianas/vault-renderer/releases). Verify the archive against its matching line in `checksums.txt` before use. To build from source:
 
 ```sh
 go test ./...
@@ -17,11 +19,10 @@ vault-renderer inspect --config examples/basic/vault-values.yaml
 
 ## Helm 3
 
-For direct Helm use, the renderer reads configuration and the release namespace from the environment. Helm does not pass chart values or the release namespace to a post-renderer automatically. The direct executable form requires **Helm 3.1+**. [Helm 4 requires a `postrenderer/v1` plugin name](https://docs.helm.sh/docs/overview/#post-renderers-implemented-as-plugins); it cannot use a bare executable path.
+For direct Helm use, the renderer reads configuration from the environment. Helm does not pass chart values or the release namespace to a post-renderer automatically. The direct executable form requires **Helm 3.1+**. [Helm 4 requires a `postrenderer/v1` plugin name](https://docs.helm.sh/docs/overview/#post-renderers-implemented-as-plugins); it cannot use a bare executable path.
 
 ```sh
 export VAULT_RENDERER_CONFIG="$PWD/examples/basic/vault-values.yaml"
-export VAULT_RENDERER_NAMESPACE=production
 helm template payment examples/basic/chart --namespace production --post-renderer "$PWD/vault-renderer"
 # After reviewing the rendered manifests:
 helm upgrade --install payment examples/basic/chart --namespace production --post-renderer "$PWD/vault-renderer"
@@ -36,7 +37,6 @@ go build -o vault-renderer ./cmd/vault-renderer
 export PATH="$PWD:$PATH"
 helm plugin install "$PWD/helm4-plugin"
 export VAULT_RENDERER_CONFIG="$PWD/examples/basic/vault-values.yaml"
-export VAULT_RENDERER_NAMESPACE=production
 helm template payment examples/basic/chart --namespace production --post-renderer vault-renderer
 ```
 
@@ -59,7 +59,23 @@ For standalone use: `vault-renderer render --config FILE --namespace production 
 
 ## Configuration
 
-See [the example](examples/basic/vault-values.yaml). `vault-injector.enabled` must be true. Injection needs a target with `name`, `labelSelector`, or `annotationSelector`, explicit `annotationDiscovery: true`, or explicit `mode: all`. Targets can specify `kind`, `kinds`, `namespace`, and selectors on workload metadata. Kubernetes label `matchLabels` and `matchExpressions` are supported. `exclude` wins over targets. A target that specifies only `kind` is rejected to prevent accidental broad injection. Global mode skips `kube-system`, `kube-public`, and `kube-node-lease`; an explicit target can still select them. Namespace matching uses `--namespace` or `VAULT_RENDERER_NAMESPACE` when `metadata.namespace` is absent; it never assumes `default`.
+See the [basic example](examples/basic/vault-values.yaml) and [multi-workload example](examples/multi-workload/targets.yaml). `vault-injector.enabled` must be true. Injection needs a target with `name`, `labelSelector`, or `annotationSelector`, explicit `annotationDiscovery: true`, or explicit `mode: all`. Targets can specify `kind`, `kinds`, `namespace`, and selectors on workload metadata. Kubernetes label `matchLabels` and `matchExpressions` are supported. `exclude` wins over targets. A target that specifies only `kind` is rejected to prevent accidental broad injection. Global mode skips `kube-system`, `kube-public`, and `kube-node-lease`; an explicit target can still select them. Namespace matching uses `--namespace` or `VAULT_RENDERER_NAMESPACE` when `metadata.namespace` is absent; it never assumes `default`.
+
+`VAULT_RENDERER_NAMESPACE` is **optional** for the basic example because its target has no namespace filter. Set it when a chart omits `metadata.namespace` and you use a target or exclusion with an exact `namespace`. This makes the renderer match against the effective Helm release namespace; it does not change the workload manifest's namespace field.
+
+## Multi-workload example and result
+
+The [target configuration](examples/multi-workload/targets.yaml) selects a Deployment by exact name and namespace, a StatefulSet by name, a DaemonSet by label expression, a Job through native Vault annotation keys, a CronJob by name, and a Pod by annotation selector. It excludes a legacy DaemonSet even though that DaemonSet matches the label selector. Init-only and sidecar-only modes are included.
+
+```sh
+./vault-renderer render \
+  --config examples/multi-workload/targets.yaml \
+  --namespace production \
+  < examples/multi-workload/manifests.yaml \
+  > rendered.yaml
+```
+
+The [full rendered result](examples/multi-workload/rendered.yaml) contains six generated ConfigMaps and the eight original resources. For `payment-api`, the generated ConfigMap is `payment-api-deployment-vault-agent` in `production`; it holds `agent-init.hcl` and `agent.hcl`. The Deployment Pod template gains `vault-agent-init`, `vault-agent`, the ConfigMap and projected-token mounts, a memory-backed `vault-secrets` volume, and a checksum. The ConfigMap contains no retrieved secret values. See [ANNOTATIONS.md](ANNOTATIONS.md) for every accepted key and its behavior.
 
 Settings merge in this order: built-in defaults, global `defaults`, existing Pod template Vault annotations, then matching targets. More specific targets override broader ones. Conflicting values from equally specific targets fail. `inject` accepts annotation suffixes or `annotations` with full `vault.hashicorp.com/` keys. Set `annotationDiscovery: true` to select workloads with `vault.hashicorp.com/agent-inject: "true"` on their Pod templates even when there are no targets; it is disabled by default. Secret IDs are arbitrary nonempty suffixes; templates are stored verbatim in HCL and evaluated by Vault Agent. `agent-inject-file-ID` must be a single safe filename under the mount path. `agent-inject-containers` is a comma-separated list of application container names; if omitted, the secret volume is mounted into every application container in the selected workload.
 

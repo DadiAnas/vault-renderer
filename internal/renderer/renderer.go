@@ -76,6 +76,17 @@ func ParseConfig(data []byte) (Config, error) {
 	if err := d.Decode(&extra); err != io.EOF {
 		return cfg, fmt.Errorf("config: expected one YAML document")
 	}
+	var root map[string]any
+	if err := yaml.Unmarshal(data, &root); err != nil {
+		return cfg, fmt.Errorf("config: %w", err)
+	}
+	settings, ok := root["vault-injector"].(map[string]any)
+	if !ok {
+		return cfg, fmt.Errorf("vault-injector root is required")
+	}
+	if _, ok := settings["enabled"]; !ok {
+		return cfg, fmt.Errorf("vault-injector.enabled is required")
+	}
 	if err := validateSettings(cfg.Injector.Defaults); err != nil {
 		return cfg, fmt.Errorf("defaults: %w", err)
 	}
@@ -227,8 +238,8 @@ func validateSettings(s map[string]string) error {
 			return fmt.Errorf("unsupported setting %q", key)
 		}
 	}
-	if s["tls-secret"] != "" && s["tls-ca-cert"] == "" {
-		return fmt.Errorf("tls-ca-cert is required with tls-secret")
+	if (s["tls-secret"] == "") != (s["tls-ca-cert"] == "") {
+		return fmt.Errorf("tls-secret and tls-ca-cert must be supplied together")
 	}
 	return nil
 }

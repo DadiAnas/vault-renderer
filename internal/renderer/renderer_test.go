@@ -619,3 +619,17 @@ func TestAgentBypassesRootOnlyImageEntrypoint(t *testing.T) {
 		t.Fatal("Agent containers must invoke the Vault binary directly")
 	}
 }
+
+func TestRejectsCAFileWithoutTLSSecret(t *testing.T) {
+	input := strings.Replace(config, "    agent-image: hashicorp/vault:1.20", "    agent-image: hashicorp/vault:1.20\n    tls-ca-cert: ca.pem", 1)
+	if _, err := ParseConfig([]byte(input)); err == nil {
+		t.Fatal("CA filename without a Kubernetes Secret was accepted")
+	}
+}
+
+func TestRequiresExplicitEnabledSetting(t *testing.T) {
+	input := strings.Replace(config, "  enabled: true\n", "", 1)
+	if _, err := ParseConfig([]byte(input)); err == nil {
+		t.Fatal("configuration with targets but no enabled setting was accepted")
+	}
+}

@@ -1,0 +1,899 @@
+apiVersion: v1
+data:
+  agent-init.hcl: |
+    exit_after_auth = true
+    vault {
+      address = "https://vault.example.com"
+    }
+    auto_auth {
+      method "kubernetes" {
+        mount_path = "auth/kubernetes"
+        config = {
+          role       = "payment-api"
+          token_path = "/vault/token/token"
+        }
+      }
+    }
+    template {
+      contents    = "{{- with secret \"secret/data/payment/database\" -}}\nDB_USERNAME={{ .Data.data.username }}\nDB_PASSWORD={{ .Data.data.password }}\n{{- end }}\n"
+      destination = "/vault/secrets/database.env"
+      perms       = "0640"
+    }
+  agent.hcl: |
+    exit_after_auth = false
+    vault {
+      address = "https://vault.example.com"
+    }
+    auto_auth {
+      method "kubernetes" {
+        mount_path = "auth/kubernetes"
+        config = {
+          role       = "payment-api"
+          token_path = "/vault/token/token"
+        }
+      }
+    }
+    template {
+      contents    = "{{- with secret \"secret/data/payment/database\" -}}\nDB_USERNAME={{ .Data.data.username }}\nDB_PASSWORD={{ .Data.data.password }}\n{{- end }}\n"
+      destination = "/vault/secrets/database.env"
+      perms       = "0640"
+    }
+kind: ConfigMap
+metadata:
+  labels:
+    vault-renderer.dadianas.com/managed: "true"
+  name: payment-api-deployment-vault-agent
+  namespace: production
+---
+apiVersion: v1
+data:
+  agent-init.hcl: |
+    exit_after_auth = true
+    vault {
+      address = "https://vault.example.com"
+    }
+    auto_auth {
+      method "kubernetes" {
+        mount_path = "auth/kubernetes"
+        config = {
+          role       = "payment-worker"
+          token_path = "/vault/token/token"
+        }
+      }
+    }
+    template {
+      contents    = "{{- with secret \"secret/data/payment/redis\" -}}\n{{ .Data | toJSON }}\n{{- end }}\n"
+      destination = "/vault/secrets/redis.env"
+      perms       = "0640"
+    }
+  agent.hcl: |
+    exit_after_auth = false
+    vault {
+      address = "https://vault.example.com"
+    }
+    auto_auth {
+      method "kubernetes" {
+        mount_path = "auth/kubernetes"
+        config = {
+          role       = "payment-worker"
+          token_path = "/vault/token/token"
+        }
+      }
+    }
+    template {
+      contents    = "{{- with secret \"secret/data/payment/redis\" -}}\n{{ .Data | toJSON }}\n{{- end }}\n"
+      destination = "/vault/secrets/redis.env"
+      perms       = "0640"
+    }
+kind: ConfigMap
+metadata:
+  labels:
+    vault-renderer.dadianas.com/managed: "true"
+  name: payment-worker-statefulset-vault-agent
+  namespace: production
+---
+apiVersion: v1
+data:
+  agent-init.hcl: |
+    exit_after_auth = true
+    vault {
+      address = "https://vault.example.com"
+    }
+    auto_auth {
+      method "kubernetes" {
+        mount_path = "auth/kubernetes"
+        config = {
+          role       = "node-reader"
+          token_path = "/vault/token/token"
+        }
+      }
+    }
+    template {
+      contents    = "{{- with secret \"secret/data/platform/node\" -}}\n{{ .Data | toJSON }}\n{{- end }}\n"
+      destination = "/vault/secrets/node"
+      perms       = "0640"
+    }
+  agent.hcl: |
+    exit_after_auth = false
+    vault {
+      address = "https://vault.example.com"
+    }
+    auto_auth {
+      method "kubernetes" {
+        mount_path = "auth/kubernetes"
+        config = {
+          role       = "node-reader"
+          token_path = "/vault/token/token"
+        }
+      }
+    }
+    template {
+      contents    = "{{- with secret \"secret/data/platform/node\" -}}\n{{ .Data | toJSON }}\n{{- end }}\n"
+      destination = "/vault/secrets/node"
+      perms       = "0640"
+    }
+kind: ConfigMap
+metadata:
+  labels:
+    vault-renderer.dadianas.com/managed: "true"
+  name: node-reader-daemonset-vault-agent
+  namespace: production
+---
+apiVersion: v1
+data:
+  agent-init.hcl: |
+    exit_after_auth = true
+    vault {
+      address = "https://vault.example.com"
+    }
+    auto_auth {
+      method "kubernetes" {
+        mount_path = "auth/kubernetes"
+        config = {
+          role       = "payment-migration"
+          token_path = "/vault/token/token"
+        }
+      }
+    }
+    template {
+      contents    = "{{- with secret \"secret/data/payment/schema\" -}}\n{{ .Data | toJSON }}\n{{- end }}\n"
+      destination = "/vault/secrets/schema"
+      perms       = "0640"
+    }
+  agent.hcl: |
+    exit_after_auth = false
+    vault {
+      address = "https://vault.example.com"
+    }
+    auto_auth {
+      method "kubernetes" {
+        mount_path = "auth/kubernetes"
+        config = {
+          role       = "payment-migration"
+          token_path = "/vault/token/token"
+        }
+      }
+    }
+    template {
+      contents    = "{{- with secret \"secret/data/payment/schema\" -}}\n{{ .Data | toJSON }}\n{{- end }}\n"
+      destination = "/vault/secrets/schema"
+      perms       = "0640"
+    }
+kind: ConfigMap
+metadata:
+  labels:
+    vault-renderer.dadianas.com/managed: "true"
+  name: payment-migration-job-vault-agent
+  namespace: production
+---
+apiVersion: v1
+data:
+  agent-init.hcl: |
+    exit_after_auth = true
+    vault {
+      address = "https://vault.example.com"
+    }
+    auto_auth {
+      method "kubernetes" {
+        mount_path = "auth/kubernetes"
+        config = {
+          role       = "nightly-report"
+          token_path = "/vault/token/token"
+        }
+      }
+    }
+    template {
+      contents    = "{{- with secret \"secret/data/payment/report\" -}}\n{{ .Data | toJSON }}\n{{- end }}\n"
+      destination = "/vault/secrets/report"
+      perms       = "0640"
+    }
+  agent.hcl: |
+    exit_after_auth = false
+    vault {
+      address = "https://vault.example.com"
+    }
+    auto_auth {
+      method "kubernetes" {
+        mount_path = "auth/kubernetes"
+        config = {
+          role       = "nightly-report"
+          token_path = "/vault/token/token"
+        }
+      }
+    }
+    template {
+      contents    = "{{- with secret \"secret/data/payment/report\" -}}\n{{ .Data | toJSON }}\n{{- end }}\n"
+      destination = "/vault/secrets/report"
+      perms       = "0640"
+    }
+kind: ConfigMap
+metadata:
+  labels:
+    vault-renderer.dadianas.com/managed: "true"
+  name: nightly-report-cronjob-vault-agent
+  namespace: production
+---
+apiVersion: v1
+data:
+  agent-init.hcl: |
+    exit_after_auth = true
+    vault {
+      address = "https://vault.example.com"
+    }
+    auto_auth {
+      method "kubernetes" {
+        mount_path = "auth/kubernetes"
+        config = {
+          role       = "toolbox"
+          token_path = "/vault/token/token"
+        }
+      }
+    }
+    template {
+      contents    = "{{- with secret \"secret/data/platform/tools\" -}}\n{{ .Data | toJSON }}\n{{- end }}\n"
+      destination = "/vault/secrets/tools"
+      perms       = "0640"
+    }
+  agent.hcl: |
+    exit_after_auth = false
+    vault {
+      address = "https://vault.example.com"
+    }
+    auto_auth {
+      method "kubernetes" {
+        mount_path = "auth/kubernetes"
+        config = {
+          role       = "toolbox"
+          token_path = "/vault/token/token"
+        }
+      }
+    }
+    template {
+      contents    = "{{- with secret \"secret/data/platform/tools\" -}}\n{{ .Data | toJSON }}\n{{- end }}\n"
+      destination = "/vault/secrets/tools"
+      perms       = "0640"
+    }
+kind: ConfigMap
+metadata:
+  labels:
+    vault-renderer.dadianas.com/managed: "true"
+  name: toolbox-pod-vault-agent
+  namespace: production
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: payment-api
+  name: payment-api
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: payment-api
+  template:
+    metadata:
+      annotations:
+        vault-renderer.dadianas.com/checksum: 90c6119e6f76cfc8b942c5c17eac7e4793843227675cd4c10362268ea66c9726
+        vault-renderer.dadianas.com/managed: "true"
+        vault.hashicorp.com/agent-inject-status: injected
+      labels:
+        app: payment-api
+    spec:
+      containers:
+        - image: nginx:1.27
+          name: api
+          volumeMounts:
+            - mountPath: /vault/secrets
+              name: vault-secrets
+              readOnly: true
+        - args:
+            - agent
+            - -config=/vault/config/agent.hcl
+          command:
+            - /bin/vault
+          image: hashicorp/vault:1.20.4
+          name: vault-agent
+          resources:
+            limits:
+              cpu: 500m
+              memory: 128Mi
+            requests:
+              cpu: 250m
+              memory: 64Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            runAsGroup: 1000
+            runAsNonRoot: true
+            runAsUser: 1000
+          volumeMounts:
+            - mountPath: /vault/secrets
+              name: vault-secrets
+            - mountPath: /vault/config
+              name: vault-agent-config
+              readOnly: true
+            - mountPath: /vault/token
+              name: vault-agent-token
+              readOnly: true
+      initContainers:
+        - args:
+            - agent
+            - -config=/vault/config/agent-init.hcl
+          command:
+            - /bin/vault
+          image: hashicorp/vault:1.20.4
+          name: vault-agent-init
+          resources:
+            limits:
+              cpu: 500m
+              memory: 128Mi
+            requests:
+              cpu: 250m
+              memory: 64Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            runAsGroup: 1000
+            runAsNonRoot: true
+            runAsUser: 1000
+          volumeMounts:
+            - mountPath: /vault/secrets
+              name: vault-secrets
+            - mountPath: /vault/config
+              name: vault-agent-config
+              readOnly: true
+            - mountPath: /vault/token
+              name: vault-agent-token
+              readOnly: true
+      securityContext:
+        fsGroup: 1000
+      serviceAccountName: payment-api
+      volumes:
+        - emptyDir:
+            medium: Memory
+          name: vault-secrets
+        - configMap:
+            name: payment-api-deployment-vault-agent
+          name: vault-agent-config
+        - name: vault-agent-token
+          projected:
+            sources:
+              - serviceAccountToken:
+                  audience: vault
+                  expirationSeconds: 3600
+                  path: token
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: payment-worker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: payment-worker
+  serviceName: payment-worker
+  template:
+    metadata:
+      annotations:
+        vault-renderer.dadianas.com/checksum: c96e1dd3b1f4a445a279344d960dff10233f63874536a02ba465f675dc3097e8
+        vault-renderer.dadianas.com/managed: "true"
+        vault.hashicorp.com/agent-inject-status: injected
+      labels:
+        app: payment-worker
+    spec:
+      containers:
+        - command:
+            - sleep
+            - "3600"
+          image: busybox:1.36
+          name: worker
+          volumeMounts:
+            - mountPath: /vault/secrets
+              name: vault-secrets
+              readOnly: true
+      initContainers:
+        - args:
+            - agent
+            - -config=/vault/config/agent-init.hcl
+          command:
+            - /bin/vault
+          image: hashicorp/vault:1.20.4
+          name: vault-agent-init
+          resources:
+            limits:
+              cpu: 500m
+              memory: 128Mi
+            requests:
+              cpu: 250m
+              memory: 64Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            runAsGroup: 1000
+            runAsNonRoot: true
+            runAsUser: 1000
+          volumeMounts:
+            - mountPath: /vault/secrets
+              name: vault-secrets
+            - mountPath: /vault/config
+              name: vault-agent-config
+              readOnly: true
+            - mountPath: /vault/token
+              name: vault-agent-token
+              readOnly: true
+      securityContext:
+        fsGroup: 1000
+      serviceAccountName: payment-worker
+      volumes:
+        - emptyDir:
+            medium: Memory
+          name: vault-secrets
+        - configMap:
+            name: payment-worker-statefulset-vault-agent
+          name: vault-agent-config
+        - name: vault-agent-token
+          projected:
+            sources:
+              - serviceAccountToken:
+                  audience: vault
+                  expirationSeconds: 3600
+                  path: token
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  labels:
+    vault-injection: enabled
+  name: node-reader
+spec:
+  selector:
+    matchLabels:
+      app: node-reader
+  template:
+    metadata:
+      annotations:
+        vault-renderer.dadianas.com/checksum: 52c955a168c5eab172ef21fc0c57234621f2d786a4f09ac67b5002ca23f4ba10
+        vault-renderer.dadianas.com/managed: "true"
+        vault.hashicorp.com/agent-inject-status: injected
+      labels:
+        app: node-reader
+    spec:
+      containers:
+        - command:
+            - sleep
+            - "3600"
+          image: busybox:1.36
+          name: reader
+          volumeMounts:
+            - mountPath: /vault/secrets
+              name: vault-secrets
+              readOnly: true
+        - args:
+            - agent
+            - -config=/vault/config/agent.hcl
+          command:
+            - /bin/vault
+          image: hashicorp/vault:1.20.4
+          name: vault-agent
+          resources:
+            limits:
+              cpu: 500m
+              memory: 128Mi
+            requests:
+              cpu: 250m
+              memory: 64Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            runAsGroup: 1000
+            runAsNonRoot: true
+            runAsUser: 1000
+          volumeMounts:
+            - mountPath: /vault/secrets
+              name: vault-secrets
+            - mountPath: /vault/config
+              name: vault-agent-config
+              readOnly: true
+            - mountPath: /vault/token
+              name: vault-agent-token
+              readOnly: true
+      securityContext:
+        fsGroup: 1000
+      serviceAccountName: node-reader
+      volumes:
+        - emptyDir:
+            medium: Memory
+          name: vault-secrets
+        - configMap:
+            name: node-reader-daemonset-vault-agent
+          name: vault-agent-config
+        - name: vault-agent-token
+          projected:
+            sources:
+              - serviceAccountToken:
+                  audience: vault
+                  expirationSeconds: 3600
+                  path: token
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: payment-migration
+spec:
+  template:
+    metadata:
+      annotations:
+        vault-renderer.dadianas.com/checksum: e02e1f7edb197e65b5be472edb1a3acc489876ab41ac61f9a3227d8745d44870
+        vault-renderer.dadianas.com/managed: "true"
+        vault.hashicorp.com/agent-inject-status: injected
+    spec:
+      containers:
+        - command:
+            - "true"
+          image: busybox:1.36
+          name: migration
+          volumeMounts:
+            - mountPath: /vault/secrets
+              name: vault-secrets
+              readOnly: true
+        - args:
+            - agent
+            - -config=/vault/config/agent.hcl
+          command:
+            - /bin/vault
+          image: hashicorp/vault:1.20.4
+          name: vault-agent
+          resources:
+            limits:
+              cpu: 500m
+              memory: 128Mi
+            requests:
+              cpu: 250m
+              memory: 64Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            runAsGroup: 1000
+            runAsNonRoot: true
+            runAsUser: 1000
+          volumeMounts:
+            - mountPath: /vault/secrets
+              name: vault-secrets
+            - mountPath: /vault/config
+              name: vault-agent-config
+              readOnly: true
+            - mountPath: /vault/token
+              name: vault-agent-token
+              readOnly: true
+      initContainers:
+        - args:
+            - agent
+            - -config=/vault/config/agent-init.hcl
+          command:
+            - /bin/vault
+          image: hashicorp/vault:1.20.4
+          name: vault-agent-init
+          resources:
+            limits:
+              cpu: 500m
+              memory: 128Mi
+            requests:
+              cpu: 250m
+              memory: 64Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            runAsGroup: 1000
+            runAsNonRoot: true
+            runAsUser: 1000
+          volumeMounts:
+            - mountPath: /vault/secrets
+              name: vault-secrets
+            - mountPath: /vault/config
+              name: vault-agent-config
+              readOnly: true
+            - mountPath: /vault/token
+              name: vault-agent-token
+              readOnly: true
+      restartPolicy: Never
+      securityContext:
+        fsGroup: 1000
+      serviceAccountName: payment-migration
+      volumes:
+        - emptyDir:
+            medium: Memory
+          name: vault-secrets
+        - configMap:
+            name: payment-migration-job-vault-agent
+          name: vault-agent-config
+        - name: vault-agent-token
+          projected:
+            sources:
+              - serviceAccountToken:
+                  audience: vault
+                  expirationSeconds: 3600
+                  path: token
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: nightly-report
+spec:
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          annotations:
+            vault-renderer.dadianas.com/checksum: 5fb711e1e5125e961a61f097312497a24ef146b53d13cbe0613528141026ce4a
+            vault-renderer.dadianas.com/managed: "true"
+            vault.hashicorp.com/agent-inject-status: injected
+        spec:
+          containers:
+            - command:
+                - "true"
+              image: busybox:1.36
+              name: report
+              volumeMounts:
+                - mountPath: /vault/secrets
+                  name: vault-secrets
+                  readOnly: true
+            - args:
+                - agent
+                - -config=/vault/config/agent.hcl
+              command:
+                - /bin/vault
+              image: hashicorp/vault:1.20.4
+              name: vault-agent
+              resources:
+                limits:
+                  cpu: 500m
+                  memory: 128Mi
+                requests:
+                  cpu: 250m
+                  memory: 64Mi
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop:
+                    - ALL
+                readOnlyRootFilesystem: true
+                runAsGroup: 1000
+                runAsNonRoot: true
+                runAsUser: 1000
+              volumeMounts:
+                - mountPath: /vault/secrets
+                  name: vault-secrets
+                - mountPath: /vault/config
+                  name: vault-agent-config
+                  readOnly: true
+                - mountPath: /vault/token
+                  name: vault-agent-token
+                  readOnly: true
+          initContainers:
+            - args:
+                - agent
+                - -config=/vault/config/agent-init.hcl
+              command:
+                - /bin/vault
+              image: hashicorp/vault:1.20.4
+              name: vault-agent-init
+              resources:
+                limits:
+                  cpu: 500m
+                  memory: 128Mi
+                requests:
+                  cpu: 250m
+                  memory: 64Mi
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop:
+                    - ALL
+                readOnlyRootFilesystem: true
+                runAsGroup: 1000
+                runAsNonRoot: true
+                runAsUser: 1000
+              volumeMounts:
+                - mountPath: /vault/secrets
+                  name: vault-secrets
+                - mountPath: /vault/config
+                  name: vault-agent-config
+                  readOnly: true
+                - mountPath: /vault/token
+                  name: vault-agent-token
+                  readOnly: true
+          restartPolicy: Never
+          securityContext:
+            fsGroup: 1000
+          serviceAccountName: nightly-report
+          volumes:
+            - emptyDir:
+                medium: Memory
+              name: vault-secrets
+            - configMap:
+                name: nightly-report-cronjob-vault-agent
+              name: vault-agent-config
+            - name: vault-agent-token
+              projected:
+                sources:
+                  - serviceAccountToken:
+                      audience: vault
+                      expirationSeconds: 3600
+                      path: token
+  schedule: 0 2 * * *
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  annotations:
+    example.com/vault: "yes"
+    vault-renderer.dadianas.com/checksum: d52620f1848f8218576a70d5cc978c4878c134a50332035d8b39783fffd2d74f
+    vault-renderer.dadianas.com/managed: "true"
+    vault.hashicorp.com/agent-inject-status: injected
+  name: toolbox
+spec:
+  containers:
+    - command:
+        - sleep
+        - "3600"
+      image: busybox:1.36
+      name: shell
+      volumeMounts:
+        - mountPath: /vault/secrets
+          name: vault-secrets
+          readOnly: true
+    - args:
+        - agent
+        - -config=/vault/config/agent.hcl
+      command:
+        - /bin/vault
+      image: hashicorp/vault:1.20.4
+      name: vault-agent
+      resources:
+        limits:
+          cpu: 500m
+          memory: 128Mi
+        requests:
+          cpu: 250m
+          memory: 64Mi
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop:
+            - ALL
+        readOnlyRootFilesystem: true
+        runAsGroup: 1000
+        runAsNonRoot: true
+        runAsUser: 1000
+      volumeMounts:
+        - mountPath: /vault/secrets
+          name: vault-secrets
+        - mountPath: /vault/config
+          name: vault-agent-config
+          readOnly: true
+        - mountPath: /vault/token
+          name: vault-agent-token
+          readOnly: true
+  initContainers:
+    - args:
+        - agent
+        - -config=/vault/config/agent-init.hcl
+      command:
+        - /bin/vault
+      image: hashicorp/vault:1.20.4
+      name: vault-agent-init
+      resources:
+        limits:
+          cpu: 500m
+          memory: 128Mi
+        requests:
+          cpu: 250m
+          memory: 64Mi
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop:
+            - ALL
+        readOnlyRootFilesystem: true
+        runAsGroup: 1000
+        runAsNonRoot: true
+        runAsUser: 1000
+      volumeMounts:
+        - mountPath: /vault/secrets
+          name: vault-secrets
+        - mountPath: /vault/config
+          name: vault-agent-config
+          readOnly: true
+        - mountPath: /vault/token
+          name: vault-agent-token
+          readOnly: true
+  securityContext:
+    fsGroup: 1000
+  serviceAccountName: toolbox
+  volumes:
+    - emptyDir:
+        medium: Memory
+      name: vault-secrets
+    - configMap:
+        name: toolbox-pod-vault-agent
+      name: vault-agent-config
+    - name: vault-agent-token
+      projected:
+        sources:
+          - serviceAccountToken:
+              audience: vault
+              expirationSeconds: 3600
+              path: token
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  labels:
+    vault-injection: enabled
+  name: legacy-agent
+spec:
+  selector:
+    matchLabels:
+      app: legacy-agent
+  template:
+    metadata:
+      labels:
+        app: legacy-agent
+    spec:
+      containers:
+        - command:
+            - sleep
+            - "3600"
+          image: busybox:1.36
+          name: legacy
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: payment-api
+spec:
+  ports:
+    - port: 80
+      targetPort: 80
+  selector:
+    app: payment-api
