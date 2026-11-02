@@ -5,7 +5,7 @@
 ## 1. From chart to Pod
 
 ```mermaid
-flowchart LR
+flowchart TD
     chart[Chart templates] --> helm[Helm renders final manifests]
     values[Chart defaults and -f values] --> helm
     helm --> renderer[vault-renderer reads stdin]
