@@ -2,7 +2,7 @@
 
 ## Current release
 
-- **Outcome:** publish the Go renderer as an open-source project at `github.com/dadianas/vault-renderer`, with a GitHub Pages guide and downloadable cross-platform release. The `v0.1.0-beta.2` preview adds default annotation discovery.
+- **Outcome:** publish the Go renderer as an open-source project at `github.com/dadianas/vault-renderer`, with a GitHub Pages guide and downloadable cross-platform release. The `v0.1.0-beta.3` preview includes default annotation discovery and duplicate ordinary-key handling.
 - **Owner / priority:** maintainers / high.
 - **Acceptance evidence:** public repository with a license and clean source history; tests, vet, build, gosec, multi-target fixture, and third-party chart rendering pass; GitHub Pages is live and checked at desktop and mobile widths; a new Compose Vault plus kind Kubernetes test passes; Linux/macOS/Windows binaries and checksums are attached to a verified GitHub release; supported annotations, generic use cases, and example outputs are explained in the README and site.
 - **Impact map:** module import path, CLI build, README links, multi-kind fixtures and rendered output, third-party chart qualification, annotation reference, public documentation, license, GitHub workflows, Pages configuration, Compose test fixture, security scanning, release packaging, and downstream Helm 2/3/4 instructions. No Kubernetes manifests or stored secrets need migration.
@@ -30,8 +30,8 @@
 - **Outcome / owner / priority:** maintainers / high: accept repeated noncritical mapping keys such as `appcode` and `opscontact` in Helm-rendered manifests without aborting injection.
 - **Impact map:** manifest YAML decoding in `Render`, selected and unselected workload output, duplicate Vault annotation handling, renderer regression tests, and release documentation. External config decoding remains strict.
 - **Acceptance evidence:** duplicate ordinary labels use a documented deterministic value, the annotation-driven workload still injects, malformed YAML still fails, and duplicate injection-critical Vault annotations cannot silently change behavior. Run Go tests, vet, gosec, and a CLI render before publishing a fix.
-- **Evidence:** the reported duplicate-key error was reproduced in a renderer regression test. Ordinary keys now use the last value; duplicate Vault annotations fail with line numbers; optional config parsing remains strict. Go tests, vet, gosec, and a no-config CLI render with both repeated labels pass.
-- **Current blocker / next action:** publish a patch preview binary and verify its uploaded checksums. The user's exact chart was not provided; the regression uses the reported key pattern.
+- **Evidence:** the reported duplicate-key error was reproduced in a renderer regression test. Ordinary keys now use the last value; duplicate Vault annotations fail with line numbers; optional config parsing remains strict. Go tests, vet, gosec, and a no-config CLI render with both repeated labels pass. `v0.1.0-beta.3` is published; uploaded archive digests match the verified local checksums.
+- **Current blocker / next action:** no blocker for the reported key pattern. The user's exact chart was not provided; qualify that chart and intended environment before production admission.
 
 ## Next compatibility work
 
