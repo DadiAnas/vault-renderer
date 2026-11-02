@@ -47,7 +47,7 @@ flowchart TD
         agent --> files[Memory-backed shared secret files]
         files --> app[Application reads mounted files]
     end
-    agent <-->|Kubernetes auth and secret reads| vault[(Vault server)]
+    agent -.-|Kubernetes auth and secret reads| vault[(Vault server)]
 ```
 
 Kubernetes starts the mutated Pod. Vault Agent uses the ServiceAccount token to authenticate to Vault, evaluates the configured templates, and writes files into the shared memory-backed volume. The application must already be configured to read those files; the renderer does not rewrite application settings or turn files into process environment variables. An init Agent can populate files before application startup, while a sidecar can refresh them later, according to the selected annotations.
