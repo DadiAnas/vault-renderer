@@ -7,7 +7,7 @@
 - **Acceptance evidence:** public repository with a license and clean source history; tests, vet, build, gosec, multi-target fixture, and third-party chart rendering pass; GitHub Pages is live and checked at desktop and mobile widths; a new Compose Vault plus kind Kubernetes test passes; Linux/macOS/Windows binaries and checksums are attached to a verified GitHub release; supported annotations, generic use cases, and example outputs are explained in the README and site.
 - **Impact map:** module import path, CLI build, README links, multi-kind fixtures and rendered output, third-party chart qualification, annotation reference, public documentation, license, GitHub workflows, Pages configuration, Compose test fixture, security scanning, release packaging, and downstream Helm 2/3/4 instructions. No Kubernetes manifests or stored secrets need migration.
 - **Current blocker:** the intended Kubernetes/Vault environment has not been identified for release admission.
-- **Next action:** resolve nine gosec findings in the CLI's config read and Helm 2 chart output paths, publish the expanded generic guide, verify CI and Pages, build and publish cross-platform binaries with checksums, then qualify the intended environment when available. Affected callers are direct CLI users, Helm 2 packaging, Helm 3/4 post-rendering, and their tests.
+- **Next action:** verify GitHub closes the golang.org/x/net alert after the patched dependency is pushed, recheck CI and Pages, build and publish cross-platform binaries with checksums, then qualify the intended environment when available. Affected consumers are module resolution, the CLI binary, Helm 2/3/4 output, and their tests.
 
 ## Verified locally
 
