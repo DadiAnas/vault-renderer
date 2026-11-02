@@ -60,7 +60,7 @@ The renderer keeps these native annotations and adds `agent-inject-status: injec
 
 ## Optional target-only renderer settings
 
-A separate YAML file is needed only for defaults, exclusions, overrides, or selecting workloads without existing annotations. When a workload already has `agent-inject: "true"`, matching targets override native annotations and the official engine is used. A target-only workload without that native annotation keeps the legacy ConfigMap-based path, which supports the narrower set below. Advanced official annotations on a target-only workload fail rather than being ignored.
+Defaults, exclusions, overrides, or targets can live in a standalone YAML file **or in any Helm values YAML** under a top-level `vault-injector` key. Pass that file with `--config=PATH`, `--post-renderer-args=--config=PATH`, or `VAULT_RENDERER_CONFIG=PATH`; Helm's `-f` flag alone does not forward its file path to the post-renderer. The renderer ignores unrelated chart values and strictly validates only its own section. When a workload already has `agent-inject: "true"`, matching targets override native annotations and the official engine is used. A target-only workload without that native annotation keeps the legacy ConfigMap-based path, which supports the narrower set below. Advanced official annotations on a target-only workload fail rather than being ignored.
 
 | Key or family | Target-only behavior |
 | --- | --- |

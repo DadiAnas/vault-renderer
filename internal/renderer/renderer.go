@@ -76,20 +76,46 @@ func DefaultConfig() Config {
 func ParseConfig(data []byte) (Config, error) {
 	cfg := DefaultConfig()
 	d := yaml.NewDecoder(bytes.NewReader(data))
-	d.KnownFields(true)
-	if err := d.Decode(&cfg); err != nil {
+	var document yaml.Node
+	if err := d.Decode(&document); err != nil {
 		return cfg, fmt.Errorf("config: %w", err)
 	}
 	var extra any
 	if err := d.Decode(&extra); err != io.EOF {
 		return cfg, fmt.Errorf("config: expected one YAML document")
 	}
-	var root map[string]any
-	if err := yaml.Unmarshal(data, &root); err != nil {
+	if len(document.Content) != 1 || document.Content[0].Kind != yaml.MappingNode {
+		return cfg, fmt.Errorf("config: expected a YAML mapping")
+	}
+	var injector *yaml.Node
+	root := document.Content[0]
+	for i := 0; i < len(root.Content); i += 2 {
+		if root.Content[i].Value != "vault-injector" {
+			continue
+		}
+		if injector != nil {
+			return cfg, fmt.Errorf("config: duplicate vault-injector root")
+		}
+		injector = root.Content[i+1]
+	}
+	if injector != nil && injector.Kind == yaml.AliasNode {
+		injector = injector.Alias
+	}
+	if injector == nil || injector.Kind != yaml.MappingNode {
+		return cfg, fmt.Errorf("vault-injector root is required")
+	}
+	var settings map[string]any
+	if err := injector.Decode(&settings); err != nil {
 		return cfg, fmt.Errorf("config: %w", err)
 	}
-	if _, ok := root["vault-injector"].(map[string]any); !ok {
-		return cfg, fmt.Errorf("vault-injector root is required")
+	section, err := yaml.Marshal(map[string]any{"vault-injector": settings})
+	if err != nil {
+		return cfg, fmt.Errorf("config: %w", err)
+	}
+	strict := yaml.NewDecoder(bytes.NewReader(section))
+	strict.KnownFields(true)
+	if err := strict.Decode(&cfg); err != nil {
+		return cfg, fmt.Errorf("config: %w", err)
 	}
 	if err := validateSettings(cfg.Injector.Defaults); err != nil {
 		return cfg, fmt.Errorf("defaults: %w", err)

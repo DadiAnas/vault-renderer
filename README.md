@@ -71,6 +71,35 @@ For standalone use: `vault-renderer render --config FILE --namespace production 
 
 See the [basic example](examples/basic/vault-values.yaml) and [multi-workload example](examples/multi-workload/targets.yaml) for optional configuration. `vault-injector.enabled` defaults to true. By default, the renderer selects supported workloads whose final Pod template has `vault.hashicorp.com/agent-inject: "true"`. Set `annotationDiscovery: false` to turn off that selection. Explicit targets with `name`, `labelSelector`, or `annotationSelector` also select workloads; `mode: all` selects all supported kinds. Targets can specify `kind`, `kinds`, `namespace`, and selectors on workload metadata. Kubernetes label `matchLabels` and `matchExpressions` are supported. `exclude` wins over targets. A target that specifies only `kind` is rejected to prevent accidental broad injection. Global mode skips `kube-system`, `kube-public`, and `kube-node-lease`; an explicit target can still select them. Namespace matching uses `--namespace` or `VAULT_RENDERER_NAMESPACE` when `metadata.namespace` is absent; it never assumes `default`.
 
+### Reuse any Helm values YAML
+
+The renderer reads only a top-level `vault-injector` section and ignores all other chart values. The filename is arbitrary, so one file can serve Helm and the renderer:
+
+```yaml
+# values.yaml
+replicaCount: 2
+vault-injector:
+  defaults:
+    agent-image: registry.company.example/security/vault:2.0.4
+```
+
+```sh
+helm upgrade --install myapp ./chart --namespace production \
+  -f values.yaml \
+  --post-renderer ./vault-renderer \
+  --post-renderer-args=--config=values.yaml
+```
+
+For Helm 4, use the installed plugin name `--post-renderer vault-renderer` with the same `--post-renderer-args`. The environment variable remains an alternative:
+
+```sh
+VAULT_RENDERER_CONFIG="$PWD/values.yaml" \
+  helm upgrade --install myapp ./chart --namespace production \
+    -f values.yaml --post-renderer ./vault-renderer
+```
+
+The path must reach both Helm and the renderer because Helm passes only rendered manifests to a post-renderer, not its `-f` arguments or merged values. The `vault-injector` section is validated strictly; unrelated chart values are ignored. A chart with a closed `values.schema.json` may reject a new top-level key before the renderer runs.
+
 `VAULT_RENDERER_NAMESPACE` is **optional** for the basic example because its target has no namespace filter. Set it when a chart omits `metadata.namespace` and you use a target or exclusion with an exact `namespace`. This makes the renderer match against the effective Helm release namespace; it does not change the workload manifest's namespace field.
 
 ## Multi-workload example and result

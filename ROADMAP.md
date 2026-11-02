@@ -50,6 +50,14 @@
 - **Evidence:** `v0.2.0-beta.1` is published with six archive digests verified after upload; its Go CI workflow, including gosec and govulncheck, passed. The generic README, annotation reference, and site now lead with the restricted-admission use case and state that Kubernetes policies still apply.
 - **Current blocker / next action:** the exact customer chart and Vault Enterprise server are unavailable locally. Qualify those paths before production admission; the local run covers representative annotation combinations, not every possible combination.
 
+## Reuse Helm environment values for renderer defaults
+
+- **Outcome / owner / priority:** maintainers / high: let one environment values YAML file contain chart values plus a top-level `vault-injector` section, so the same file can be passed to Helm with `-f` and to the renderer without a dedicated config file.
+- **Impact map:** config parsing and strict validation of the `vault-injector` subtree, CLI config-file loading, native annotation precedence, tests, generic documentation, and Helm 3/4 invocation examples. Helm's post-renderer contract still supplies manifests only, so the values path must also be passed through an environment variable or post-renderer argument.
+- **Acceptance evidence:** a mixed values file drives the private Agent image in both init and sidecar; unrelated chart values are ignored by the renderer; unknown or duplicate renderer keys still fail; Go tests, vet, gosec, govulncheck, and a Helm chart render pass.
+- **Evidence:** mixed chart values, unrelated duplicate keys, an external YAML anchor, strict renderer-key rejection, and the CLI environment-variable path have tests. The official Tempo chart rendered through Helm 4 using the same arbitrary YAML for `-f` and `--config`; init and sidecar used the private Agent image. `VAULT_RENDERER_CONFIG` produced byte-identical output to `--config`. Go tests, vet, gosec, and govulncheck passed; the site was checked at mobile width without overflow.
+- **Current blocker / next action:** publish the patch preview and verify its release assets and live docs. Exact `-f`-only invocation remains impossible under Helm's post-renderer stdin/stdout contract; the same file must also be named in an environment variable or post-renderer argument.
+
 ## Next compatibility work
 
 - Track new vault-k8s annotation releases and update the pinned inventory, compatibility tests, and dependency audit together.

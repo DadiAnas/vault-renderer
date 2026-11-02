@@ -26,7 +26,7 @@ func run(args []string, in io.Reader, out, diag io.Writer) int {
 	}
 	flags := flag.NewFlagSet(command, flag.ContinueOnError)
 	flags.SetOutput(diag)
-	configPath := flags.String("config", os.Getenv("VAULT_RENDERER_CONFIG"), "configuration YAML file")
+	configPath := flags.String("config", os.Getenv("VAULT_RENDERER_CONFIG"), "renderer config or mixed Helm values YAML file")
 	outputDir := flags.String("output-dir", "", "output directory for helm2-chart")
 	namespace := flags.String("namespace", os.Getenv("VAULT_RENDERER_NAMESPACE"), "effective Helm release namespace")
 	dryRun := flags.Bool("dry-run", false, "validate rendered manifests without writing them")

@@ -103,6 +103,87 @@ func TestEmptyOptionalConfigurationEnablesAnnotationDiscovery(t *testing.T) {
 	}
 }
 
+func TestMixedHelmValuesSupplyRendererDefaults(t *testing.T) {
+	values := `replicaCount: 2
+image:
+  repository: example.com/application
+  tag: v1
+vault-injector:
+  defaults:
+    agent-image: registry.company.example/security/vault:2.0.4
+`
+	cfg, err := ParseConfig([]byte(values))
+	if err != nil {
+		t.Fatal(err)
+	}
+	input := strings.Replace(deployment, "annotations: {other: keep}", `annotations: {vault.hashicorp.com/agent-inject: "true", vault.hashicorp.com/service: https://vault.example.com, vault.hashicorp.com/role: payment, vault.hashicorp.com/agent-inject-secret-db: secret/data/payment}`, 1)
+	out, err := Render([]byte(input), cfg, "production")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var manifest map[string]any
+	if err := yaml.Unmarshal(out, &manifest); err != nil {
+		t.Fatal(err)
+	}
+	_, podSpec, err := podParts(manifest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, field := range []string{"initContainers", "containers"} {
+		found := false
+		for _, item := range array(podSpec, field) {
+			container := item.(map[string]any)
+			if strings.HasPrefix(str(container, "name"), "vault-agent") && str(container, "image") == "registry.company.example/security/vault:2.0.4" {
+				found = true
+			}
+		}
+		if !found {
+			t.Fatalf("private Vault Agent image was not applied to %s", field)
+		}
+	}
+	if strings.Contains(string(out), "example.com/application") {
+		t.Fatal("unrelated Helm values leaked into rendered manifests")
+	}
+}
+
+func TestMixedValuesKeepRendererSectionStrict(t *testing.T) {
+	for _, input := range []string{
+		"replicaCount: 2\nvault-injector:\n  unknown: value\n",
+		"replicaCount: 2\nvault-injector:\n  enabled: true\n  enabled: false\n",
+		"replicaCount: 2\nvault-injector: {}\nvault-injector: {}\n",
+	} {
+		if _, err := ParseConfig([]byte(input)); err == nil {
+			t.Fatalf("invalid renderer section was accepted: %s", input)
+		}
+	}
+}
+
+func TestMixedValuesIgnoreUnrelatedKeysAndResolveAnchors(t *testing.T) {
+	input := `image: &privateVault registry.company.example/security/vault:2.0.4
+replicaCount: 1
+replicaCount: 2
+vault-injector:
+  defaults:
+    agent-image: *privateVault
+`
+	cfg, err := ParseConfig([]byte(input))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Injector.Defaults["agent-image"] != "registry.company.example/security/vault:2.0.4" {
+		t.Fatal("renderer did not read the selected values subtree")
+	}
+	aliased := `shared: &rendererDefaults
+  defaults:
+    agent-image: registry.company.example/security/vault:2.0.4
+vault-injector: *rendererDefaults
+`
+	cfg, err = ParseConfig([]byte(aliased))
+	if err != nil || cfg.Injector.Defaults["agent-image"] != "registry.company.example/security/vault:2.0.4" {
+		t.Fatal("aliased renderer section was not resolved", err)
+	}
+}
+
 func TestRejectsUnknownInjectSetting(t *testing.T) {
 	_, err := ParseConfig([]byte(strings.Replace(config, "agent-inject-file-db", "agent-inject-unknown-db", 1)))
 	if err == nil {

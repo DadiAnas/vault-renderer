@@ -11,7 +11,7 @@ import (
 func TestDefaultCommandRendersFromEnvironment(t *testing.T) {
 	dir := t.TempDir()
 	file := filepath.Join(dir, "vault.yaml")
-	if err := os.WriteFile(file, []byte("vault-injector:\n  enabled: true\n  targets:\n    - kind: Pod\n      name: demo\n      inject:\n        role: demo\n        vault-addr: https://vault.example.com\n        agent-inject-secret-db: secret/data/demo\n"), 0600); err != nil {
+	if err := os.WriteFile(file, []byte("replicaCount: 2\nvault-injector:\n  enabled: true\n  targets:\n    - kind: Pod\n      name: demo\n      inject:\n        role: demo\n        vault-addr: https://vault.example.com\n        agent-inject-secret-db: secret/data/demo\n"), 0600); err != nil {
 		t.Fatal(err)
 	}
 	t.Setenv("VAULT_RENDERER_CONFIG", file)
