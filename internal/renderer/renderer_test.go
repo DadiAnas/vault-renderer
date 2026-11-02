@@ -91,6 +91,16 @@ func TestNoTargetsDoesNotInject(t *testing.T) {
 	}
 }
 
+func TestEmptyOptionalConfigurationEnablesAnnotationDiscovery(t *testing.T) {
+	cfg, err := ParseConfig([]byte("vault-injector: {}\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !cfg.Injector.Enabled || !cfg.Injector.AnnotationDiscovery {
+		t.Fatal("annotation discovery was not the default")
+	}
+}
+
 func TestRejectsUnknownInjectSetting(t *testing.T) {
 	_, err := ParseConfig([]byte(strings.Replace(config, "agent-inject-file-db", "agent-inject-unknown-db", 1)))
 	if err == nil {
@@ -486,7 +496,7 @@ func TestInvalidManifestYAMLFails(t *testing.T) {
 	}
 }
 
-func TestVaultInitRunsBeforeExistingInitContainers(t *testing.T) {
+func TestVaultInitFollowsExistingInitContainersUnlessRequestedFirst(t *testing.T) {
 	cfg, err := ParseConfig([]byte(config))
 	if err != nil {
 		t.Fatal(err)
@@ -496,14 +506,42 @@ func TestVaultInitRunsBeforeExistingInitContainers(t *testing.T) {
 		t.Fatal(err)
 	}
 	s := string(out)
+	if strings.Index(s, "name: vault-agent-init") < strings.Index(s, "name: setup") {
+		t.Fatal("Vault init ran first without agent-init-first")
+	}
+	first, err := ParseConfig([]byte(strings.Replace(config, "    agent-image: hashicorp/vault:1.20", "    agent-image: hashicorp/vault:1.20\n    agent-init-first: \"true\"", 1)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	out, err = Render([]byte(deployment), first, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	s = string(out)
 	if strings.Index(s, "name: vault-agent-init") > strings.Index(s, "name: setup") {
-		t.Fatal("existing init runs before Vault renders secrets")
+		t.Fatal("agent-init-first did not put Vault first")
 	}
 }
 
-func TestAnnotationDiscoveryRequiresExplicitOptIn(t *testing.T) {
+func TestDefaultTemplateMatchesOfficialMapAndAllowsJSON(t *testing.T) {
+	input := strings.Replace(deployment, "annotations: {other: keep}", "annotations: {vault.hashicorp.com/agent-inject: \"true\", vault.hashicorp.com/service: https://vault.example.com, vault.hashicorp.com/role: payment, vault.hashicorp.com/agent-inject-secret-db: secret/data/payment}", 1)
+	out, err := Render([]byte(input), DefaultConfig(), "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(out), "range $key, $value := .Data") || strings.Contains(string(out), "toJSON") {
+		t.Fatal("default template did not use the official map form")
+	}
+	input = strings.Replace(input, "vault.hashicorp.com/agent-inject-secret-db:", "vault.hashicorp.com/agent-inject-default-template: json, vault.hashicorp.com/agent-inject-secret-db:", 1)
+	out, err = Render([]byte(input), DefaultConfig(), "")
+	if err != nil || !strings.Contains(string(out), "toJSON") {
+		t.Fatal("json default template was not honored", err)
+	}
+}
+
+func TestAnnotationDiscoveryDefaultsOnAndCanBeDisabled(t *testing.T) {
 	input := strings.Replace(deployment, "annotations: {other: keep}", "annotations: {other: keep, vault.hashicorp.com/agent-inject: \"true\", vault.hashicorp.com/role: payment, vault.hashicorp.com/agent-inject-secret-db: secret/data/payment}", 1)
-	cfg, err := ParseConfig([]byte("vault-injector:\n  enabled: true\n  annotationDiscovery: true\n  defaults: {vault-addr: https://vault.example.com}\n"))
+	cfg, err := ParseConfig([]byte("vault-injector:\n  enabled: true\n  defaults: {vault-addr: https://vault.example.com}\n"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -514,6 +552,18 @@ func TestAnnotationDiscoveryRequiresExplicitOptIn(t *testing.T) {
 	if !strings.Contains(string(out), "kind: ConfigMap") {
 		t.Fatal("annotated workload not injected")
 	}
+	cfg, err = ParseConfig([]byte("vault-injector:\n  enabled: true\n  annotationDiscovery: false\n  defaults: {vault-addr: https://vault.example.com}\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	out, err = Render([]byte(input), cfg, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(out), "kind: ConfigMap") {
+		t.Fatal("annotation discovery opt-out was ignored")
+	}
+	input = strings.Replace(input, `vault.hashicorp.com/agent-inject: "true"`, `vault.hashicorp.com/agent-inject: "false"`, 1)
 	cfg, err = ParseConfig([]byte("vault-injector:\n  enabled: true\n  defaults: {vault-addr: https://vault.example.com}\n"))
 	if err != nil {
 		t.Fatal(err)
@@ -523,7 +573,49 @@ func TestAnnotationDiscoveryRequiresExplicitOptIn(t *testing.T) {
 		t.Fatal(err)
 	}
 	if strings.Contains(string(out), "kind: ConfigMap") {
-		t.Fatal("annotation discovery was implicit")
+		t.Fatal("explicit false annotation was injected without a target")
+	}
+}
+
+func TestDiscoveredUnsupportedAnnotationFails(t *testing.T) {
+	input := strings.Replace(deployment, "annotations: {other: keep}", "annotations: {vault.hashicorp.com/agent-inject: \"true\", vault.hashicorp.com/service: https://vault.example.com, vault.hashicorp.com/role: payment, vault.hashicorp.com/agent-inject-secret-db: secret/data/payment, vault.hashicorp.com/agent-inject-command-db: reload}", 1)
+	_, err := Render([]byte(input), DefaultConfig(), "")
+	if err == nil || !strings.Contains(err.Error(), "unsupported setting") {
+		t.Fatal("unsupported injector annotation did not fail clearly", err)
+	}
+}
+
+func TestDiscoveredAnnotationWithoutVaultAddressExplainsMissingDefault(t *testing.T) {
+	input := strings.Replace(deployment, "annotations: {other: keep}", "annotations: {vault.hashicorp.com/agent-inject: \"true\", vault.hashicorp.com/role: payment, vault.hashicorp.com/agent-inject-secret-db: secret/data/payment}", 1)
+	_, err := Render([]byte(input), DefaultConfig(), "")
+	if err == nil || !strings.Contains(err.Error(), "vault.hashicorp.com/service or an optional renderer vault-addr default") {
+		t.Fatal("missing Vault address was not explained", err)
+	}
+}
+
+func TestEnvironmentTargetOverridesRenderedAnnotations(t *testing.T) {
+	input := strings.Replace(deployment, "annotations: {other: keep}", "annotations: {other: keep, vault.hashicorp.com/agent-inject: \"false\", vault.hashicorp.com/role: chart-role, vault.hashicorp.com/agent-inject-secret-db: secret/data/chart}", 1)
+	cfg, err := ParseConfig([]byte(`vault-injector:
+  enabled: true
+  defaults: {vault-addr: https://vault.example.com}
+  targets:
+    - kind: Deployment
+      name: payment-api
+      inject:
+        agent-inject: "true"
+        role: env-role
+        agent-inject-secret-db: secret/data/env
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	out, err := Render([]byte(input), cfg, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := string(out)
+	if !strings.Contains(s, "kind: ConfigMap") || !strings.Contains(s, `"env-role"`) || !strings.Contains(s, "secret/data/env") || strings.Contains(s, "secret/data/chart") {
+		t.Fatal(s)
 	}
 }
 
@@ -627,9 +719,10 @@ func TestRejectsCAFileWithoutTLSSecret(t *testing.T) {
 	}
 }
 
-func TestRequiresExplicitEnabledSetting(t *testing.T) {
+func TestEnabledSettingDefaultsOn(t *testing.T) {
 	input := strings.Replace(config, "  enabled: true\n", "", 1)
-	if _, err := ParseConfig([]byte(input)); err == nil {
-		t.Fatal("configuration with targets but no enabled setting was accepted")
+	cfg, err := ParseConfig([]byte(input))
+	if err != nil || !cfg.Injector.Enabled {
+		t.Fatal("configuration without enabled did not default on", err)
 	}
 }

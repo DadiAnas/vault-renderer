@@ -25,6 +25,33 @@ func TestDefaultCommandRendersFromEnvironment(t *testing.T) {
 	}
 }
 
+func TestDefaultCommandDiscoversAnnotationsWithoutConfig(t *testing.T) {
+	t.Setenv("VAULT_RENDERER_CONFIG", "")
+	in := strings.NewReader(`apiVersion: v1
+kind: Pod
+metadata:
+  name: demo
+  annotations:
+    vault.hashicorp.com/agent-inject: "true"
+    vault.hashicorp.com/service: https://vault.example.com
+    vault.hashicorp.com/role: demo
+    vault.hashicorp.com/agent-inject-secret-db: secret/data/demo
+spec:
+  containers: [{name: app, image: nginx}]
+`)
+	var out, diag bytes.Buffer
+	if code := run(nil, in, &out, &diag); code != 0 {
+		t.Fatalf("exit %d: %s", code, diag.String())
+	}
+	if !strings.Contains(out.String(), "kind: ConfigMap") || !strings.Contains(out.String(), "name: vault-agent-init") || diag.Len() != 0 {
+		t.Fatalf("stdout=%s stderr=%s", out.String(), diag.String())
+	}
+	var second bytes.Buffer
+	if code := run(nil, strings.NewReader(out.String()), &second, &diag); code != 0 || second.String() != out.String() {
+		t.Fatalf("second render changed output: code=%d stderr=%s", code, diag.String())
+	}
+}
+
 func TestValidateRejectsUnknownField(t *testing.T) {
 	file := filepath.Join(t.TempDir(), "bad.yaml")
 	if err := os.WriteFile(file, []byte("vault-injector:\n  enabled: true\n  surprise: true\n"), 0600); err != nil {

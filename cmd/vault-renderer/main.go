@@ -48,29 +48,28 @@ func run(args []string, in io.Reader, out, diag io.Writer) int {
 		fmt.Fprintln(diag, "--log-level must be error or debug")
 		return 2
 	}
-	if *configPath == "" {
-		fmt.Fprintln(diag, "--config or VAULT_RENDERER_CONFIG is required")
-		return 2
-	}
-	configRoot, err := os.OpenRoot(filepath.Dir(*configPath))
-	if err != nil {
-		fmt.Fprintln(diag, err)
-		return 1
-	}
-	data, err := configRoot.ReadFile(filepath.Base(*configPath))
-	closeErr := configRoot.Close()
-	if err != nil {
-		fmt.Fprintln(diag, err)
-		return 1
-	}
-	if closeErr != nil {
-		fmt.Fprintln(diag, closeErr)
-		return 1
-	}
-	cfg, err := renderer.ParseConfig(data)
-	if err != nil {
-		fmt.Fprintln(diag, err)
-		return 1
+	cfg := renderer.DefaultConfig()
+	if *configPath != "" {
+		configRoot, err := os.OpenRoot(filepath.Dir(*configPath))
+		if err != nil {
+			fmt.Fprintln(diag, err)
+			return 1
+		}
+		data, err := configRoot.ReadFile(filepath.Base(*configPath))
+		closeErr := configRoot.Close()
+		if err != nil {
+			fmt.Fprintln(diag, err)
+			return 1
+		}
+		if closeErr != nil {
+			fmt.Fprintln(diag, closeErr)
+			return 1
+		}
+		cfg, err = renderer.ParseConfig(data)
+		if err != nil {
+			fmt.Fprintln(diag, err)
+			return 1
+		}
 	}
 	if command == "validate" {
 		fmt.Fprintln(out, "configuration valid")

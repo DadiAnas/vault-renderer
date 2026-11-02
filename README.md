@@ -1,6 +1,6 @@
 # vault-renderer
 
-[Website](https://dadianas.github.io/vault-renderer/) · [Releases](https://github.com/dadianas/vault-renderer/releases) · [Annotations](ANNOTATIONS.md) · [Examples](examples/multi-workload/targets.yaml) · [License](LICENSE) · [Roadmap](ROADMAP.md)
+[Website](https://dadianas.github.io/vault-renderer/) · [Releases](https://github.com/dadianas/vault-renderer/releases) · [Annotations](ANNOTATIONS.md) · [Examples](examples/annotation-only/manifests.yaml) · [License](LICENSE) · [Roadmap](ROADMAP.md)
 
 `vault-renderer` is a standalone Go [Helm post-renderer](https://helm.sh/docs/topics/advanced/#post-rendering) for selected Kubernetes workloads. It generates Vault Agent configuration in a ConfigMap and adds an init container, a sidecar, or both. Vault retrieves secrets when the Pod runs; the renderer does not contact Vault.
 
@@ -19,13 +19,12 @@ vault-renderer inspect --config examples/basic/vault-values.yaml
 
 ## Helm 3
 
-For direct Helm use, the renderer reads configuration from the environment. Helm does not pass chart values or the release namespace to a post-renderer automatically. The direct executable form requires **Helm 3.1+**. [Helm 4 requires a `postrenderer/v1` plugin name](https://docs.helm.sh/docs/overview/#post-renderers-implemented-as-plugins); it cannot use a bare executable path.
+For an existing chart with supported Vault Agent Injector annotations, no renderer config file is needed. Helm passes the final manifests to the post-renderer; it does not pass the original values file or release namespace separately. The direct executable form requires **Helm 3.1+**. [Helm 4 requires a `postrenderer/v1` plugin name](https://docs.helm.sh/docs/overview/#post-renderers-implemented-as-plugins); it cannot use a bare executable path.
 
 ```sh
-export VAULT_RENDERER_CONFIG="$PWD/examples/basic/vault-values.yaml"
-helm template payment examples/basic/chart --namespace production --post-renderer "$PWD/vault-renderer"
+helm template myapp ./chart --namespace production --post-renderer "$PWD/vault-renderer"
 # After reviewing the rendered manifests:
-helm upgrade --install payment examples/basic/chart --namespace production --post-renderer "$PWD/vault-renderer"
+helm upgrade --install myapp ./chart --namespace production --post-renderer "$PWD/vault-renderer"
 ```
 
 ## Helm 4
@@ -36,11 +35,20 @@ With Helm 4, build the binary into your `PATH`, install the optional [plugin man
 go build -o vault-renderer ./cmd/vault-renderer
 export PATH="$PWD:$PATH"
 helm plugin install "$PWD/helm4-plugin"
-export VAULT_RENDERER_CONFIG="$PWD/examples/basic/vault-values.yaml"
-helm template payment examples/basic/chart --namespace production --post-renderer vault-renderer
+helm template myapp ./chart --namespace production --post-renderer vault-renderer
 ```
 
 The plugin is needed only for Helm 4 integration. The renderer itself has no Helm runtime dependency and remains a plain stdin/stdout executable. This version boundary means the specification's no-plugin direct invocation is achievable in Helm 3, but not in Helm 4.
+
+## Existing annotations, no renderer config
+
+The [annotation-only input](examples/annotation-only/manifests.yaml) is a generic Deployment with Pod-template `agent-inject: "true"`, `service`, `role`, and a dynamic secret path. No target or renderer config file is needed:
+
+```sh
+./vault-renderer < examples/annotation-only/manifests.yaml > rendered.yaml
+```
+
+The [rendered result](examples/annotation-only/rendered.yaml) contains the original Deployment plus `ConfigMap/reports-deployment-vault-agent`. Its Pod template has one init Agent, one sidecar Agent, the ConfigMap and projected-token volumes, a memory-backed secrets volume, and `agent-inject-status: injected`. The renderer leaves the application container and other workload settings intact. The ConfigMap stores Agent instructions, not retrieved secret values.
 
 ## Helm 2
 
@@ -59,7 +67,7 @@ For standalone use: `vault-renderer render --config FILE --namespace production 
 
 ## Configuration
 
-See the [basic example](examples/basic/vault-values.yaml) and [multi-workload example](examples/multi-workload/targets.yaml). `vault-injector.enabled` must be true. Injection needs a target with `name`, `labelSelector`, or `annotationSelector`, explicit `annotationDiscovery: true`, or explicit `mode: all`. Targets can specify `kind`, `kinds`, `namespace`, and selectors on workload metadata. Kubernetes label `matchLabels` and `matchExpressions` are supported. `exclude` wins over targets. A target that specifies only `kind` is rejected to prevent accidental broad injection. Global mode skips `kube-system`, `kube-public`, and `kube-node-lease`; an explicit target can still select them. Namespace matching uses `--namespace` or `VAULT_RENDERER_NAMESPACE` when `metadata.namespace` is absent; it never assumes `default`.
+See the [basic example](examples/basic/vault-values.yaml) and [multi-workload example](examples/multi-workload/targets.yaml) for optional configuration. `vault-injector.enabled` defaults to true. By default, the renderer selects supported workloads whose final Pod template has `vault.hashicorp.com/agent-inject: "true"`. Set `annotationDiscovery: false` to turn off that selection. Explicit targets with `name`, `labelSelector`, or `annotationSelector` also select workloads; `mode: all` selects all supported kinds. Targets can specify `kind`, `kinds`, `namespace`, and selectors on workload metadata. Kubernetes label `matchLabels` and `matchExpressions` are supported. `exclude` wins over targets. A target that specifies only `kind` is rejected to prevent accidental broad injection. Global mode skips `kube-system`, `kube-public`, and `kube-node-lease`; an explicit target can still select them. Namespace matching uses `--namespace` or `VAULT_RENDERER_NAMESPACE` when `metadata.namespace` is absent; it never assumes `default`.
 
 `VAULT_RENDERER_NAMESPACE` is **optional** for the basic example because its target has no namespace filter. Set it when a chart omits `metadata.namespace` and you use a target or exclusion with an exact `namespace`. This makes the renderer match against the effective Helm release namespace; it does not change the workload manifest's namespace field.
 
@@ -79,13 +87,24 @@ The [full rendered result](examples/multi-workload/rendered.yaml) contains six g
 
 **Application consumption:** injection makes files available at the mount path; it does not rewrite the application's configuration or turn files into process environment variables. Set chart values or application options to read the mounted file when the application needs its contents.
 
-Settings merge in this order: built-in defaults, global `defaults`, existing Pod template Vault annotations, then matching targets. More specific targets override broader ones. Conflicting values from equally specific targets fail. `inject` accepts annotation suffixes or `annotations` with full `vault.hashicorp.com/` keys. Set `annotationDiscovery: true` to select workloads with `vault.hashicorp.com/agent-inject: "true"` on their Pod templates even when there are no targets; it is disabled by default. Secret IDs are arbitrary nonempty suffixes; templates are stored verbatim in HCL and evaluated by Vault Agent. `agent-inject-file-ID` must be a single safe filename under the mount path. `agent-inject-containers` is a comma-separated list of application container names; if omitted, the secret volume is mounted into every application container in the selected workload.
+Helm merges chart defaults and `-f` environment values before calling the renderer, so the **final rendered Pod annotations** are what discovery reads. The renderer does not receive Helm values directly: keep renderer defaults and targets in a separate environment configuration file passed through `VAULT_RENDERER_CONFIG`. Settings merge in this order: built-in defaults, renderer global `defaults`, final Pod template Vault annotations, then matching renderer targets. A target can override a chart annotation, including `agent-inject: "false"` with explicit `agent-inject: "true"`; `exclude` and a matching target with `agent-inject: "false"` still disable injection. More specific targets override broader ones for other settings. Conflicting values from equally specific targets fail. `inject` accepts annotation suffixes or `annotations` with full `vault.hashicorp.com/` keys. Secret IDs are arbitrary nonempty suffixes; templates are stored verbatim in HCL and evaluated by Vault Agent. `agent-inject-file-ID` must be a single safe filename under the mount path. `agent-inject-containers` is a comma-separated list of application container names; if omitted, the secret volume is mounted into every application container in the selected workload.
+
+If an existing annotated chart omits the Vault `service` address, use a small optional renderer configuration:
+
+```yaml
+vault-injector:
+  enabled: true
+  defaults:
+    vault-addr: https://vault.example.com
+```
+
+The chart must render `agent-inject: "true"`, a Vault role, a supported secret annotation, and a `service` Vault address on its Pod template for config-free operation. If the chart relies on the installed webhook's Vault address instead, supply `vault-addr` in optional renderer defaults; that webhook setting is not present in Helm output and cannot be inferred. An environment-specific target can override any supported annotation. Unsupported injector annotations fail validation rather than being silently dropped; see [ANNOTATIONS.md](ANNOTATIONS.md).
 
 Generated ConfigMap names include workload kind to avoid collisions. The Pod template receives a renderer marker and a SHA-256 checksum of the generated Agent HCL. A repeated render with the same configuration is byte-stable. Existing renderer markers are checked against the ConfigMap and injected artifacts. A collision with an existing ConfigMap or container/volume/mount fails. The renderer removes active `vault.hashicorp.com/*` Pod annotations after consuming them and adds `agent-inject-status: injected`, so a vault-k8s 1.7.6 admission injector does not inject the Pod again. Keep the renderer enabled on Helm upgrades and rollbacks.
 
 ## Startup and security
 
-- Default: init container renders initial templates; sidecar continues refresh and renewal. `agent-pre-populate-only: "true"` selects init-only. `agent-pre-populate: "false"` selects sidecar-only; application startup then **does not wait** for secrets. Init uses `exit_after_auth = true` and the Agent template stanzas; the sidecar uses `false`.
+- Default: init container renders initial templates; sidecar continues refresh and renewal. Existing init containers run before the Vault init Agent unless `agent-init-first: "true"` is set. `agent-pre-populate-only: "true"` selects init-only. `agent-pre-populate: "false"` selects sidecar-only; application startup then **does not wait** for secrets. Init uses `exit_after_auth = true` and the Agent template stanzas; the sidecar uses `false`.
 - A projected ServiceAccount token is mounted only into Agent containers at `/vault/token/token`. The default audience is `vault` and expiration is 3600 seconds. Configure the Vault Kubernetes auth role to accept that audience. Existing application ServiceAccount automount settings are preserved.
 - Secret files use a memory-backed `emptyDir`. Application mounts are read-only. Agent runs as UID/GID 1000 by default with privilege escalation disabled, all capabilities dropped, and a read-only root filesystem. The renderer adds `fsGroup: 1000` when the Pod has none, so application containers can read default `0640` files. If an existing `fsGroup` is set, the Agent adopts it. Explicit `agent-run-as-group` conflicting with it fails.
 - HTTPS Vault addresses are required. TLS verification is on by default. For a private CA, set `tls-secret` to a Kubernetes Secret name and `tls-ca-cert` to its CA filename. The Secret is mounted only into Agent containers. The renderer does not create Vault roles, policies, auth mounts, Kubernetes RBAC, or retrieved secret values.
@@ -99,8 +118,8 @@ Reference: [Vault Agent Injector annotations](https://developer.hashicorp.com/va
 
 | Annotation suffix / feature | Status | Notes |
 | --- | --- | --- |
-| `role`, `service`, `agent-image`, `agent-inject-secret-*`, `agent-inject-template-*`, `agent-inject-file-*`, `agent-inject-perms-*`, `agent-inject-containers`, `agent-requests-*`, `agent-limits-*`, `template-static-secret-render-interval` | Supported | Native Pod annotations or external config; `service` maps to Vault address. Resource suffixes: `cpu`, `mem`, `ephemeral`. |
-| `agent-pre-populate`, `agent-pre-populate-only`, `agent-inject` | Supported | Init-only, init+sidecar, sidecar-only, disabled. |
+| `role`, `service`, `agent-image`, `agent-inject-secret-*`, `agent-inject-template-*`, `agent-inject-default-template`, `agent-inject-file-*`, `agent-inject-perms-*`, `agent-inject-containers`, `agent-requests-*`, `agent-limits-*`, `template-static-secret-render-interval` | Supported | Native Pod annotations or external config; `service` maps to Vault address. Default template is `map`; `json` is optional. Resource suffixes: `cpu`, `mem`, `ephemeral`. |
+| `agent-pre-populate`, `agent-pre-populate-only`, `agent-init-first`, `agent-inject` | Supported | Init-only, init+sidecar, sidecar-only, init order, disabled. |
 | `agent-inject-status` | Coexistence only | Renderer outputs `injected`; preexisting official injection is rejected. |
 | `auth-path`, `vault-addr`, `vault-namespace`, `token-audience`, `token-expiration`, `mount-path`, `volume-name`, `tls-secret`, `tls-ca-cert`, `agent-run-as-user`, `agent-run-as-group`, `allow-http` | Renderer settings | Some are custom configuration keys rather than official annotation names. |
 | Vault Agent cache, retries, timeouts, custom security context, custom PodSpec paths, Helm wrapper | Pending | Tracked in phase 2; unknown keys fail. |

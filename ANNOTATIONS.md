@@ -19,7 +19,7 @@ inject:
     vault.hashicorp.com/agent-inject-secret-db: secret/data/payment/db
 ~~~
 
-Existing <code>vault.hashicorp.com/*</code> annotations on a selected workload's **Pod template** are also read. Values resolve in this order: built-in defaults → global defaults → existing Pod template annotations → matching target inject. More specific targets win; conflicting equally specific values fail. Exclusions and explicit <code>agent-inject: "false"</code> win over injection.
+Existing <code>vault.hashicorp.com/*</code> annotations on a selected workload's **Pod template** are also read. Helm applies chart defaults and environment values before the renderer runs, so these are the **final rendered annotations**. Values resolve in this order: built-in defaults → renderer global defaults → final Pod template annotations → matching renderer target inject. More specific targets win for ordinary settings; conflicting equally specific values fail. A target can explicitly override an annotated <code>agent-inject: "false"</code> with <code>agent-inject: "true"</code>. Exclusions and matching targets with <code>agent-inject: "false"</code> always disable injection.
 
 ## Supported Vault annotation suffixes
 
@@ -28,11 +28,13 @@ Existing <code>vault.hashicorp.com/*</code> annotations on a selected workload's
 | <code>role</code> | Vault Kubernetes auth role used by Agent. | Required for every injected workload. |
 | <code>service</code> | Vault address; overrides vault-addr. | HTTPS required unless allow-http is explicitly true. |
 | <code>agent-image</code> | Image for both Agent containers. | hashicorp/vault:1.20.4; image must provide /bin/vault. |
-| <code>agent-inject</code> | Enable or disable injection for a selected workload. | Explicit "false" disables. Annotation discovery requires "true" on the Pod template. |
+| <code>agent-inject</code> | Enable or disable injection for a selected workload. | Annotation discovery requires "true" on the Pod template by default. A matching target can override the final annotation. |
 | <code>agent-pre-populate</code> | Include an init Agent to render files before app containers start. | "true". "false" gives sidecar-only and **does not gate app startup**. |
 | <code>agent-pre-populate-only</code> | Exit after init rendering and omit the sidecar. | "false"; "true" requires agent-pre-populate: "true". |
+| <code>agent-init-first</code> | Put the Vault init Agent before existing init containers. | "false"; by default the Vault init Agent follows existing init containers. |
 | <code>agent-inject-secret-ID</code> | Vault secret path for arbitrary nonempty identifier ID. | At least one per injected workload. Actual data is read only by Agent in the Pod. |
-| <code>agent-inject-template-ID</code> | Consul Template content for the matching secret ID. | If absent, a JSON template for that path is generated. Expressions are preserved verbatim. |
+| <code>agent-inject-template-ID</code> | Consul Template content for the matching secret ID. | If absent, a map template for that path is generated. Expressions are preserved verbatim. |
+| <code>agent-inject-default-template</code> | Selects the generated template format when a secret has no custom template. | "map" by default; "json" is also supported. |
 | <code>agent-inject-file-ID</code> | Filename under mount-path for the matching secret ID. | Defaults to ID; must be a single safe filename. Duplicate destinations fail. |
 | <code>agent-inject-perms-ID</code> | File mode for the matching template destination. | "0640"; four octal digits. |
 | <code>agent-inject-containers</code> | Comma-separated application container names receiving the secret mount. | All application containers in the selected PodSpec; unknown names fail. |
@@ -62,7 +64,7 @@ These keys are accepted in <code>defaults</code> or a target's <code>inject</cod
 | <code>tls-secret</code> + <code>tls-ca-cert</code> | Existing Kubernetes Secret containing a CA file, mounted **only into Agent** at /vault/tls/; Agent verifies Vault's certificate with it. | Both required together. Use a CA-only Secret; do not mount the Vault server's private key. |
 | <code>allow-http</code> | Explicitly allow an http:// Vault address. | "false"; intended only for disposable local testing. |
 
-At the <code>vault-injector</code> root, <code>enabled</code> controls the feature; <code>targets</code> contains opt-in selectors; <code>exclude</code> always wins. <code>annotationDiscovery: true</code> opts in workloads with a Pod-template <code>vault.hashicorp.com/agent-inject: "true"</code>. <code>mode: all</code> explicitly selects all supported workload kinds except standard Kubernetes system namespaces. <code>namePrefix</code> and <code>labels</code> customize generated ConfigMap metadata. Selectors inspect **workload** metadata, while annotation discovery inspects the **Pod template**.
+No renderer configuration file is needed for discovery. At the optional <code>vault-injector</code> root, <code>enabled</code> defaults to true; <code>targets</code> contains additional selectors; <code>exclude</code> always wins. Annotation discovery is on by default for workloads with a Pod-template <code>vault.hashicorp.com/agent-inject: "true"</code>; set <code>annotationDiscovery: false</code> to turn it off. <code>mode: all</code> explicitly selects all supported workload kinds except standard Kubernetes system namespaces. <code>namePrefix</code> and <code>labels</code> customize generated ConfigMap metadata. Selectors inspect **workload** metadata, while annotation discovery inspects the **Pod template**. Renderer settings come from a separate config file; Helm does not pass its values to a post-renderer directly. A chart that depends on the installed injector's default Vault address needs a <code>service</code> annotation or an optional renderer <code>vault-addr</code> default, because that address cannot be learned from rendered manifests.
 
 <code>VAULT_RENDERER_NAMESPACE</code> (or <code>render --namespace</code>) is optional for targets without a namespace filter. Set it when a chart omits <code>metadata.namespace</code> and a target or exclusion matches an exact release namespace. The renderer never assumes default.
 

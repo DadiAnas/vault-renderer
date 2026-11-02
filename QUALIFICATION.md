@@ -49,3 +49,9 @@ A third isolated kind v0.33.0 / Kubernetes v1.37.0 cluster used a Vault 1.20.4 d
 Helm 4 installed the rendered `payment-api` Deployment with `--wait`. The Pod reached 2/2 Running with one init Agent, the application, and one sidecar Agent. The application read the initial synthetic KV value; after an external Vault update, the sidecar refreshed the file. The generated ConfigMap contained no retrieved value. This qualified the external-Vault network path, not production admission.
 
 The Compose project and kind cluster were removed. The temporary reviewer JWT, Kubernetes CA copy, kubeconfig, and renderer test configuration were deleted. Unrelated Docker containers remained running.
+
+## Annotation discovery and injector coexistence — 2026-11-02
+
+An isolated kind v0.33.0 / Kubernetes v1.37.0 cluster ran the official vault-k8s 1.7.6 admission webhook from Vault chart 0.31.0. The official Grafana Tempo chart v1.24.4 received Vault annotations through its `podAnnotations` values. The renderer was invoked through the Helm 4 post-renderer plugin with **no renderer configuration file**. It generated one Agent ConfigMap and the Tempo Pod was admitted with one `vault-agent-init`, one `vault-agent`, the original Tempo container and volume, a projected token, and `agent-inject-status: injected`. The installed webhook did not add a duplicate Agent.
+
+For comparison, the same Tempo chart and values were installed in a second namespace without the renderer. The official webhook produced one init Agent, one sidecar, and a shared secrets volume. This comparison verifies the supported container pattern and coexistence, not byte-for-byte equivalence with the official injector. The test Vault address was a placeholder and no runtime secret retrieval was claimed. The chart reports itself deprecated.

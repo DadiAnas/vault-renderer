@@ -62,7 +62,7 @@ data:
       }
     }
     template {
-      contents    = "{{- with secret \"secret/data/payment/redis\" -}}\n{{ .Data | toJSON }}\n{{- end }}\n"
+      contents    = "{{- with secret \"secret/data/payment/redis\" -}}\n{{- range $key, $value := .Data -}}\n{{ $key }}: {{ $value }}\n{{- end -}}\n{{- end -}}\n"
       destination = "/vault/secrets/redis.env"
       perms       = "0640"
     }
@@ -81,7 +81,7 @@ data:
       }
     }
     template {
-      contents    = "{{- with secret \"secret/data/payment/redis\" -}}\n{{ .Data | toJSON }}\n{{- end }}\n"
+      contents    = "{{- with secret \"secret/data/payment/redis\" -}}\n{{- range $key, $value := .Data -}}\n{{ $key }}: {{ $value }}\n{{- end -}}\n{{- end -}}\n"
       destination = "/vault/secrets/redis.env"
       perms       = "0640"
     }
@@ -109,7 +109,7 @@ data:
       }
     }
     template {
-      contents    = "{{- with secret \"secret/data/platform/node\" -}}\n{{ .Data | toJSON }}\n{{- end }}\n"
+      contents    = "{{- with secret \"secret/data/platform/node\" -}}\n{{- range $key, $value := .Data -}}\n{{ $key }}: {{ $value }}\n{{- end -}}\n{{- end -}}\n"
       destination = "/vault/secrets/node"
       perms       = "0640"
     }
@@ -128,7 +128,7 @@ data:
       }
     }
     template {
-      contents    = "{{- with secret \"secret/data/platform/node\" -}}\n{{ .Data | toJSON }}\n{{- end }}\n"
+      contents    = "{{- with secret \"secret/data/platform/node\" -}}\n{{- range $key, $value := .Data -}}\n{{ $key }}: {{ $value }}\n{{- end -}}\n{{- end -}}\n"
       destination = "/vault/secrets/node"
       perms       = "0640"
     }
@@ -156,7 +156,7 @@ data:
       }
     }
     template {
-      contents    = "{{- with secret \"secret/data/payment/schema\" -}}\n{{ .Data | toJSON }}\n{{- end }}\n"
+      contents    = "{{- with secret \"secret/data/payment/schema\" -}}\n{{- range $key, $value := .Data -}}\n{{ $key }}: {{ $value }}\n{{- end -}}\n{{- end -}}\n"
       destination = "/vault/secrets/schema"
       perms       = "0640"
     }
@@ -175,7 +175,7 @@ data:
       }
     }
     template {
-      contents    = "{{- with secret \"secret/data/payment/schema\" -}}\n{{ .Data | toJSON }}\n{{- end }}\n"
+      contents    = "{{- with secret \"secret/data/payment/schema\" -}}\n{{- range $key, $value := .Data -}}\n{{ $key }}: {{ $value }}\n{{- end -}}\n{{- end -}}\n"
       destination = "/vault/secrets/schema"
       perms       = "0640"
     }
@@ -203,7 +203,7 @@ data:
       }
     }
     template {
-      contents    = "{{- with secret \"secret/data/payment/report\" -}}\n{{ .Data | toJSON }}\n{{- end }}\n"
+      contents    = "{{- with secret \"secret/data/payment/report\" -}}\n{{- range $key, $value := .Data -}}\n{{ $key }}: {{ $value }}\n{{- end -}}\n{{- end -}}\n"
       destination = "/vault/secrets/report"
       perms       = "0640"
     }
@@ -222,7 +222,7 @@ data:
       }
     }
     template {
-      contents    = "{{- with secret \"secret/data/payment/report\" -}}\n{{ .Data | toJSON }}\n{{- end }}\n"
+      contents    = "{{- with secret \"secret/data/payment/report\" -}}\n{{- range $key, $value := .Data -}}\n{{ $key }}: {{ $value }}\n{{- end -}}\n{{- end -}}\n"
       destination = "/vault/secrets/report"
       perms       = "0640"
     }
@@ -250,7 +250,7 @@ data:
       }
     }
     template {
-      contents    = "{{- with secret \"secret/data/platform/tools\" -}}\n{{ .Data | toJSON }}\n{{- end }}\n"
+      contents    = "{{- with secret \"secret/data/platform/tools\" -}}\n{{- range $key, $value := .Data -}}\n{{ $key }}: {{ $value }}\n{{- end -}}\n{{- end -}}\n"
       destination = "/vault/secrets/tools"
       perms       = "0640"
     }
@@ -269,7 +269,7 @@ data:
       }
     }
     template {
-      contents    = "{{- with secret \"secret/data/platform/tools\" -}}\n{{ .Data | toJSON }}\n{{- end }}\n"
+      contents    = "{{- with secret \"secret/data/platform/tools\" -}}\n{{- range $key, $value := .Data -}}\n{{ $key }}: {{ $value }}\n{{- end -}}\n{{- end -}}\n"
       destination = "/vault/secrets/tools"
       perms       = "0640"
     }
@@ -403,7 +403,7 @@ spec:
   template:
     metadata:
       annotations:
-        vault-renderer.dadianas.com/checksum: c96e1dd3b1f4a445a279344d960dff10233f63874536a02ba465f675dc3097e8
+        vault-renderer.dadianas.com/checksum: 9c1895a975dac6693059e467405e90dc252b2bd546281f8ee751e4116b4f9723
         vault-renderer.dadianas.com/managed: "true"
         vault.hashicorp.com/agent-inject-status: injected
       labels:
@@ -483,7 +483,7 @@ spec:
   template:
     metadata:
       annotations:
-        vault-renderer.dadianas.com/checksum: 52c955a168c5eab172ef21fc0c57234621f2d786a4f09ac67b5002ca23f4ba10
+        vault-renderer.dadianas.com/checksum: 697e42c8583c641541383ab50cc0913395b02139e7ec1e37d291cf1cbad83165
         vault-renderer.dadianas.com/managed: "true"
         vault.hashicorp.com/agent-inject-status: injected
       labels:
@@ -557,7 +557,7 @@ spec:
   template:
     metadata:
       annotations:
-        vault-renderer.dadianas.com/checksum: e02e1f7edb197e65b5be472edb1a3acc489876ab41ac61f9a3227d8745d44870
+        vault-renderer.dadianas.com/checksum: ec0d1e4cb99faba5bb341ffec3b6653caf5cdc69fb48fcb4f01fe37f4b8dc44d
         vault-renderer.dadianas.com/managed: "true"
         vault.hashicorp.com/agent-inject-status: injected
     spec:
@@ -664,7 +664,7 @@ spec:
       template:
         metadata:
           annotations:
-            vault-renderer.dadianas.com/checksum: 5fb711e1e5125e961a61f097312497a24ef146b53d13cbe0613528141026ce4a
+            vault-renderer.dadianas.com/checksum: 06459db67aceb2411bbae8f7273ce441990313fbf4d84cce6e8e2f9e696f2254
             vault-renderer.dadianas.com/managed: "true"
             vault.hashicorp.com/agent-inject-status: injected
         spec:
@@ -767,7 +767,7 @@ kind: Pod
 metadata:
   annotations:
     example.com/vault: "yes"
-    vault-renderer.dadianas.com/checksum: d52620f1848f8218576a70d5cc978c4878c134a50332035d8b39783fffd2d74f
+    vault-renderer.dadianas.com/checksum: c48dbb2cc63d151dddf872f36f4a4ddf93f7d3003e8383d7a2fb0454e3456fad
     vault-renderer.dadianas.com/managed: "true"
     vault.hashicorp.com/agent-inject-status: injected
   name: toolbox

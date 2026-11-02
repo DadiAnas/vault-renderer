@@ -33,3 +33,22 @@ func TestPublishedMultiWorkloadExample(t *testing.T) {
 		t.Fatal("published rendered.yaml differs from current renderer output")
 	}
 }
+
+func TestPublishedAnnotationOnlyExample(t *testing.T) {
+	dir := filepath.Join("..", "..", "examples", "annotation-only")
+	manifests, err := os.ReadFile(filepath.Join(dir, "manifests.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want, err := os.ReadFile(filepath.Join(dir, "rendered.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := Render(manifests, DefaultConfig(), "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(got, want) {
+		t.Fatal("published annotation-only result differs from renderer output")
+	}
+}

@@ -65,8 +65,15 @@ var supportedKind = map[string]bool{"Deployment": true, "StatefulSet": true, "Da
 var dnsName = regexp.MustCompile(`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`)
 var invalidDNS = regexp.MustCompile(`[^a-z0-9-]`)
 
-func ParseConfig(data []byte) (Config, error) {
+func DefaultConfig() Config {
 	var cfg Config
+	cfg.Injector.Enabled = true
+	cfg.Injector.AnnotationDiscovery = true
+	return cfg
+}
+
+func ParseConfig(data []byte) (Config, error) {
+	cfg := DefaultConfig()
 	d := yaml.NewDecoder(bytes.NewReader(data))
 	d.KnownFields(true)
 	if err := d.Decode(&cfg); err != nil {
@@ -80,12 +87,8 @@ func ParseConfig(data []byte) (Config, error) {
 	if err := yaml.Unmarshal(data, &root); err != nil {
 		return cfg, fmt.Errorf("config: %w", err)
 	}
-	settings, ok := root["vault-injector"].(map[string]any)
-	if !ok {
+	if _, ok := root["vault-injector"].(map[string]any); !ok {
 		return cfg, fmt.Errorf("vault-injector root is required")
-	}
-	if _, ok := settings["enabled"]; !ok {
-		return cfg, fmt.Errorf("vault-injector.enabled is required")
 	}
 	if err := validateSettings(cfg.Injector.Defaults); err != nil {
 		return cfg, fmt.Errorf("defaults: %w", err)
@@ -204,9 +207,13 @@ func validateSettings(s map[string]string) error {
 			if val == "" {
 				return fmt.Errorf("%s cannot be empty", key)
 			}
-		case key == "agent-pre-populate", key == "agent-pre-populate-only", key == "agent-inject", key == "allow-http":
+		case key == "agent-pre-populate", key == "agent-pre-populate-only", key == "agent-init-first", key == "agent-inject", key == "allow-http":
 			if val != "true" && val != "false" {
 				return fmt.Errorf("%s must be true or false", key)
+			}
+		case key == "agent-inject-default-template":
+			if val != "map" && val != "json" {
+				return fmt.Errorf("agent-inject-default-template must be map or json")
 			}
 		case key == "agent-requests-cpu", key == "agent-limits-cpu", key == "agent-requests-mem", key == "agent-limits-mem", key == "agent-requests-ephemeral", key == "agent-limits-ephemeral":
 			if val != "" {
@@ -463,9 +470,6 @@ func Render(input []byte, cfg Config, releaseNamespace string) ([]byte, error) {
 			return nil, err
 		}
 		podAnns := ensureObject(podMeta, "annotations")
-		if str(podAnns, prefix+"agent-inject") == "false" {
-			continue
-		}
 		if str(podAnns, marker) == "true" {
 			cmName := name(cfg.Injector.NamePrefix, str(meta, "name"), kind)
 			cm := configMaps[namespace+"/"+cmName]
@@ -561,6 +565,9 @@ func inject(resource, podMeta, podSpec map[string]any, s map[string]string, cfg 
 	addr := s["vault-addr"]
 	if s["service"] != "" {
 		addr = s["service"]
+	}
+	if addr == "" {
+		return nil, fmt.Errorf("Vault address is required: set vault.hashicorp.com/service or an optional renderer vault-addr default")
 	}
 	u, err := url.Parse(addr)
 	if err != nil || (u.Scheme != "https" && !(u.Scheme == "http" && s["allow-http"] == "true")) || u.Host == "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" {
@@ -730,7 +737,12 @@ func inject(resource, podMeta, podSpec map[string]any, s map[string]string, cfg 
 		return nil, fmt.Errorf("agent-pre-populate-only requires agent-pre-populate=true")
 	}
 	if pre {
-		podSpec["initContainers"] = append([]any{base("agent-init.hcl", "vault-agent-init")}, array(podSpec, "initContainers")...)
+		initAgent := base("agent-init.hcl", "vault-agent-init")
+		if s["agent-init-first"] == "true" {
+			podSpec["initContainers"] = append([]any{initAgent}, array(podSpec, "initContainers")...)
+		} else {
+			podSpec["initContainers"] = append(array(podSpec, "initContainers"), initAgent)
+		}
 	}
 	if !only {
 		podSpec["containers"] = append(containers, base("agent.hcl", "vault-agent"))
@@ -794,7 +806,11 @@ func agentHCL(s map[string]string, ids []string, secrets map[string]string, init
 		}
 		content := s["agent-inject-template-"+id]
 		if content == "" {
-			content = "{{- with secret " + strconv.Quote(secrets[id]) + " -}}\n{{ .Data | toJSON }}\n{{- end }}\n"
+			if s["agent-inject-default-template"] == "json" {
+				content = "{{- with secret " + strconv.Quote(secrets[id]) + " -}}\n{{ .Data | toJSON }}\n{{- end }}\n"
+			} else {
+				content = "{{- with secret " + strconv.Quote(secrets[id]) + " -}}\n{{- range $key, $value := .Data -}}\n{{ $key }}: {{ $value }}\n{{- end -}}\n{{- end -}}\n"
+			}
 		}
 		block := root.AppendNewBlock("template", nil).Body()
 		block.SetAttributeValue("contents", cty.StringVal(content))

@@ -1,0 +1,21 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: reports
+spec:
+  selector:
+    matchLabels: {app: reports}
+  template:
+    metadata:
+      labels: {app: reports}
+      annotations:
+        vault.hashicorp.com/agent-inject: "true"
+        vault.hashicorp.com/service: https://vault.example.com
+        vault.hashicorp.com/role: reports
+        vault.hashicorp.com/agent-inject-secret-config: secret/data/reports/config
+        vault.hashicorp.com/agent-inject-file-config: app.env
+    spec:
+      serviceAccountName: reports
+      containers:
+        - name: reports
+          image: example.com/reports:1.0
