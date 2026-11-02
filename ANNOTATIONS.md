@@ -1,82 +1,76 @@
-# Supported annotations and renderer settings
+# Vault annotations and renderer settings
 
-This is the contract implemented by this repository, checked against Vault Agent Injector **vault-k8s 1.7.6**. It is a supported subset, not a claim of full injector compatibility. Unknown settings fail validation. See the [official annotation reference](https://developer.hashicorp.com/vault/docs/deploy/kubernetes/injector/annotations) for the wider injector feature set.
+For a workload whose final Pod template contains `vault.hashicorp.com/agent-inject: "true"`, the renderer uses the **pinned vault-k8s 1.7.6 Agent mutation package**. The tables below cover that version's annotation names; each key is prefixed with `vault.hashicorp.com/`. Dynamic `-ID` and `-PARAMETER` names require a nonempty suffix. [HashiCorp's annotation reference](https://developer.hashicorp.com/vault/docs/deploy/kubernetes/injector/annotations) describes each value in greater depth. Unknown future annotation names are reported together before mutation.
 
-Use a suffix in a target's <code>inject</code> map:
+Helm applies chart defaults and environment values before the renderer sees the manifests. Renderer defaults are applied first, final Pod annotations next, and matching external target overrides last. `exclude` and a target with `agent-inject: "false"` disable injection. This precedence applies to native annotations without trying to discover which values file produced them.
 
-~~~yaml
-inject:
-  role: payment-api
-  agent-inject-secret-db: secret/data/payment/db
-~~~
+The renderer reads the Pod template at `spec.template.metadata.annotations` for Deployments, StatefulSets, DaemonSets, and Jobs; `spec.jobTemplate.spec.template.metadata.annotations` for CronJobs; and `metadata.annotations` for Pods. It processes no custom PodSpec paths.
 
-Or use full native annotation names under <code>inject.annotations</code>:
+## Selection, Agent containers, and resources
 
-~~~yaml
-inject:
-  annotations:
-    vault.hashicorp.com/role: payment-api
-    vault.hashicorp.com/agent-inject-secret-db: secret/data/payment/db
-~~~
+| Annotation suffix | Effect |
+| --- | --- |
+| `agent-inject` | Selects or disables mutation. `"true"` selects a workload by default. |
+| `agent-inject-status` | `injected` prevents a second mutation by the installed webhook. The renderer sets it after mutation. |
+| `agent-request-namespace` | Kubernetes request namespace used by the injector engine; distinct from Vault Enterprise `namespace`. |
+| `agent-image` | Image for the Agent containers. The pinned injector default is `hashicorp/vault:2.0.4`. |
+| `agent-pre-populate`, `agent-pre-populate-only`, `agent-init-first` | Control init + sidecar, init-only, sidecar-only, and placement relative to existing init containers. |
+| `agent-inject-containers` | Comma-separated application container names that receive the secret mount. |
+| `agent-run-as-user`, `agent-run-as-group`, `agent-run-as-same-user` | Control Agent UID/GID or use the first application container's UID. |
+| `agent-set-security-context`, `agent-share-process-namespace` | Control the Agent security context and Pod process namespace. |
+| `agent-copy-volume-mounts` | Copy a named application's volume mounts into Agent containers. |
+| `agent-requests-cpu`, `agent-requests-mem`, `agent-requests-ephemeral` | Set Agent resource requests. |
+| `agent-limits-cpu`, `agent-limits-mem`, `agent-limits-ephemeral` | Set Agent resource limits. |
+| `agent-json-patch`, `agent-init-json-patch` | Apply HashiCorp's JSON patch to the sidecar or init Agent container. The renderer rejects duplicate resulting container names or mount paths. |
 
-Existing <code>vault.hashicorp.com/*</code> annotations on a selected workload's **Pod template** are also read. Helm applies chart defaults and environment values before the renderer runs, so these are the **final rendered annotations**. Values resolve in this order: built-in defaults → renderer global defaults → final Pod template annotations → matching renderer target inject. More specific targets win for ordinary settings; conflicting equally specific values fail. A target can explicitly override an annotated <code>agent-inject: "false"</code> with <code>agent-inject: "true"</code>. Exclusions and matching targets with <code>agent-inject: "false"</code> always disable injection.
+## Vault connection and authentication
 
-## Supported Vault annotation suffixes
+| Annotation suffix | Effect |
+| --- | --- |
+| `service` | Vault URL. If omitted, supply `vault-addr` in optional renderer defaults because Helm output cannot reveal the installed webhook's configured address. |
+| `namespace` | Vault Enterprise namespace for the Agent's auth method; separate from the Kubernetes release namespace. |
+| `role` | Kubernetes auth role, unless a different supported auth mode/config supplies its requirements. |
+| `auth-type`, `auth-path`, `auth-config-PARAMETER` | Select the Vault auth method, mount path, and method-specific parameters. |
+| `auth-min-backoff`, `auth-max-backoff`, `agent-auto-auth-exit-on-err` | Control authentication retry timing and exit behavior. |
+| `agent-service-account-token-volume-name` | Reuse a named projected ServiceAccount token volume. Otherwise the renderer adds one before admission. |
+| `tls-secret` | Mount an existing Kubernetes TLS Secret into Agent containers at `/vault/tls`. |
+| `ca-cert`, `ca-key`, `client-cert`, `client-key`, `tls-server-name`, `tls-skip-verify` | Set the Agent's CA path, CA directory, client certificate/key, server name, and TLS verification behavior. `tls-skip-verify` disables certificate verification when explicitly set. |
+| `proxy-address`, `client-max-retries`, `client-timeout` | Set Vault proxy and HTTP client retry/timeout behavior. |
 
-| Suffix | Effect | Default or rule |
-| --- | --- | --- |
-| <code>role</code> | Vault Kubernetes auth role used by Agent. | Required for every injected workload. |
-| <code>namespace</code> | Vault Enterprise namespace used by Agent's Kubernetes auto-auth method. | Optional; distinct from the Kubernetes release namespace. |
-| <code>service</code> | Vault address; overrides vault-addr. | HTTPS required unless allow-http is explicitly true. |
-| <code>agent-image</code> | Image for both Agent containers. | hashicorp/vault:1.20.4; image must provide /bin/vault. |
-| <code>agent-inject</code> | Enable or disable injection for a selected workload. | Annotation discovery requires "true" on the Pod template by default. A matching target can override the final annotation. |
-| <code>agent-pre-populate</code> | Include an init Agent to render files before app containers start. | "true". "false" gives sidecar-only and **does not gate app startup**. |
-| <code>agent-pre-populate-only</code> | Exit after init rendering and omit the sidecar. | "false"; "true" requires agent-pre-populate: "true". |
-| <code>agent-init-first</code> | Put the Vault init Agent before existing init containers. | "false"; by default the Vault init Agent follows existing init containers. |
-| <code>agent-inject-secret-ID</code> | Vault secret path for arbitrary nonempty identifier ID. | At least one per injected workload. Actual data is read only by Agent in the Pod. |
-| <code>agent-inject-template-ID</code> | Consul Template content for the matching secret ID. | If absent, a map template for that path is generated. Expressions are preserved verbatim. |
-| <code>agent-inject-default-template</code> | Selects the generated template format when a secret has no custom template. | "map" by default; "json" is also supported. |
-| <code>agent-inject-file-ID</code> | Filename under mount-path for the matching secret ID. | Defaults to ID; must be a single safe filename. Duplicate destinations fail. |
-| <code>agent-inject-perms-ID</code> | File mode for the matching template destination. | "0640"; four octal digits. |
-| <code>agent-inject-containers</code> | Comma-separated application container names receiving the secret mount. | All application containers in the selected PodSpec; unknown names fail. |
-| <code>agent-run-as-user</code> | Non-root UID for Agent containers. | 1000; integer 1–65535. |
-| <code>agent-run-as-group</code> | GID for Agent containers and default Pod fsGroup. | 1000; must agree with an existing Pod fsGroup. |
-| <code>agent-requests-cpu</code>, <code>agent-requests-mem</code> | CPU and memory requests on each Agent container. | 250m, 64Mi. |
-| <code>agent-limits-cpu</code>, <code>agent-limits-mem</code> | CPU and memory limits on each Agent container. | 500m, 128Mi. |
-| <code>agent-requests-ephemeral</code>, <code>agent-limits-ephemeral</code> | Ephemeral-storage requests and limits on each Agent container. | Unset. Resource values use Kubernetes quantity syntax; an empty string removes that request/limit. |
-| <code>template-static-secret-render-interval</code> | Refresh interval for non-leased secrets such as KV v2. | Vault Agent default if omitted; positive duration such as 10s or 5m. |
-| <code>agent-inject-status</code> | Marks already injected Pods so the official webhook does not inject twice. | Renderer outputs "injected". It is not an input setting. |
+## Secret files, templates, and Agent runtime
 
-ID is a suffix, not a fixed list of secret names. Multiple IDs and multiline templates are supported. A template may call more than one Vault path; the renderer never evaluates its expressions.
+| Annotation suffix | Effect |
+| --- | --- |
+| `agent-inject-secret-ID` | Vault path for a dynamically named secret file. |
+| `agent-inject-template-ID`, `agent-inject-template-file-ID`, `agent-inject-default-template` | Inline template, template file from an extra Secret, or `map`/`json` default template. |
+| `agent-inject-file-ID`, `agent-inject-perms-ID`, `secret-volume-path`, `secret-volume-path-ID` | Destination name, permissions, and shared or per-secret mount paths. |
+| `agent-inject-command-ID`, `error-on-missing-key-ID`, `preserve-secret-case`, `preserve-secret-case-ID` | Post-render command, missing-key handling, and secret-name case handling. |
+| `agent-template-left-delim-ID`, `agent-template-right-delim-ID` | Custom delimiters for an individual template. |
+| `agent-configmap`, `agent-extra-secret` | Mount an existing Agent ConfigMap or an extra Kubernetes Secret. The default annotation path does not create a ConfigMap. |
+| `agent-inject-token` | Share the Vault token with application containers in the secret volume. |
+| `agent-cache-enable`, `agent-cache-use-auto-auth-token`, `agent-cache-listener-port`, `agent-cache-exit-on-err` | Configure Agent cache and its listener/persistence behavior. |
+| `agent-enable-quit`, `agent-revoke-on-shutdown`, `agent-revoke-grace` | Enable quit and token revocation controls. |
+| `agent-disable-idle-connections`, `agent-disable-keep-alives` | Change Agent connection reuse for selected features. |
+| `template-config-exit-on-retry-failure`, `template-static-secret-render-interval`, `template-max-connections-per-host`, `template-lease-renewal-threshold` | Tune template failure, refresh, connection, and lease behavior. |
+| `agent-telemetry-PARAMETER`, `go-max-procs`, `log-level`, `log-format` | Configure Agent telemetry, Go scheduling, and logs. |
 
-## Renderer-specific settings
+The renderer keeps these native annotations and adds `agent-inject-status: injected`. The pinned engine places its Agent configuration and template expressions in the Agent containers' encoded `VAULT_CONFIG` environment value. Retrieved Vault values remain in Pod memory-backed files. The renderer never fetches them during Helm execution. [The annotation-only example](examples/annotation-only/manifests.yaml) and its [rendered output](examples/annotation-only/rendered.yaml) show this path.
 
-These keys are accepted in <code>defaults</code> or a target's <code>inject</code> map. They are **not** all official injector annotations.
+## Optional target-only renderer settings
 
-| Key | Effect | Default or rule |
-| --- | --- | --- |
-| <code>vault-addr</code> | Vault URL used in Agent HCL. | Required unless service supplies it. |
-| <code>auth-path</code> | Vault Kubernetes auth mount path. | auth/kubernetes. |
-| <code>vault-namespace</code> | Alias for the native <code>namespace</code> setting in optional renderer config. | Unset; an explicit target override takes priority over a rendered <code>vault.hashicorp.com/namespace</code> annotation. |
-| <code>token-audience</code> | Audience for the projected Kubernetes ServiceAccount token. | vault; bind the Vault role to the same audience. |
-| <code>token-expiration</code> | Projected token lifetime in seconds. | 3600; allowed 600–86400. |
-| <code>mount-path</code> | Shared memory-backed secret volume path. | /vault/secrets; absolute, clean path. |
-| <code>volume-name</code> | Kubernetes name of that secret volume. | vault-secrets; DNS label. |
-| <code>tls-secret</code> + <code>tls-ca-cert</code> | Existing Kubernetes Secret containing a CA file, mounted **only into Agent** at /vault/tls/; Agent verifies Vault's certificate with it. | Both required together. Use a CA-only Secret; do not mount the Vault server's private key. |
-| <code>allow-http</code> | Explicitly allow an http:// Vault address. | "false"; intended only for disposable local testing. |
+A separate YAML file is needed only for defaults, exclusions, overrides, or selecting workloads without existing annotations. When a workload already has `agent-inject: "true"`, matching targets override native annotations and the official engine is used. A target-only workload without that native annotation keeps the legacy ConfigMap-based path, which supports the narrower set below. Advanced official annotations on a target-only workload fail rather than being ignored.
 
-No renderer configuration file is needed for discovery. At the optional <code>vault-injector</code> root, <code>enabled</code> defaults to true; <code>targets</code> contains additional selectors; <code>exclude</code> always wins. Annotation discovery is on by default for workloads with a Pod-template <code>vault.hashicorp.com/agent-inject: "true"</code>; set <code>annotationDiscovery: false</code> to turn it off. <code>mode: all</code> explicitly selects all supported workload kinds except standard Kubernetes system namespaces. <code>namePrefix</code> and <code>labels</code> customize generated ConfigMap metadata. Selectors inspect **workload** metadata, while annotation discovery inspects the **Pod template**. Renderer settings come from a separate config file; Helm does not pass its values to a post-renderer directly. A chart that depends on the installed injector's default Vault address needs a <code>service</code> annotation or an optional renderer <code>vault-addr</code> default, because that address cannot be learned from rendered manifests.
+| Key or family | Target-only behavior |
+| --- | --- |
+| `role`, `service`, `agent-image`, `agent-inject` | Vault role/address, Agent image, enable/disable. |
+| `agent-pre-populate`, `agent-pre-populate-only`, `agent-init-first` | Startup mode and init order. |
+| `agent-inject-secret-ID`, `agent-inject-template-ID`, `agent-inject-file-ID`, `agent-inject-perms-ID` | Secret path, inline template, a single safe destination filename, and file mode. |
+| `agent-inject-containers`, `agent-run-as-user`, `agent-run-as-group` | Application mounts and Agent identity. |
+| `agent-requests-*`, `agent-limits-*`, `template-static-secret-render-interval` | Resources and static-secret refresh. |
+| `vault-addr`, `auth-path`, `vault-namespace`, `token-audience`, `token-expiration`, `mount-path`, `volume-name` | Renderer-specific address/auth, Vault namespace alias, projected-token, and volume defaults. |
+| `tls-secret` + `tls-ca-cert` | Existing CA-only Secret mounted into Agents at `/vault/tls`; the latter is a safe filename. |
+| `allow-http` | Permits an HTTP Vault address in this legacy path when explicitly true. |
 
-<code>VAULT_RENDERER_NAMESPACE</code> (or <code>render --namespace</code>) is optional for targets without a namespace filter. Set it when a chart omits <code>metadata.namespace</code> and a target or exclusion matches an exact release namespace. The renderer never assumes default.
+At the `vault-injector` config root, `enabled` defaults to true; `annotationDiscovery` defaults to true; `targets`, `exclude`, `mode: all`, `namePrefix`, and `labels` control selection and generated ConfigMap metadata. `exclude` always wins. `VAULT_RENDERER_NAMESPACE` or `render --namespace` is needed only for an exact Kubernetes namespace selector when a chart omits `metadata.namespace`. It never sets the Vault Enterprise namespace. [The multi-workload example](examples/multi-workload/targets.yaml) and its [result](examples/multi-workload/rendered.yaml) show this path.
 
-This release namespace selects the Kubernetes namespace for matching and generated ConfigMaps. <code>vault.hashicorp.com/namespace</code> selects the Vault Enterprise namespace for Agent authentication. They are independent.
-
-## Generated result
-
-For Deployment/payment-api in namespace production, the example generates ConfigMap/payment-api-deployment-vault-agent in production. It contains agent-init.hcl and agent.hcl, not fetched values. The Pod template receives the ConfigMap mount, a projected ServiceAccount token for Agent, a memory-backed vault-secrets volume, the selected application mount, Agent containers, and a checksum annotation. [See the full six-kind rendered example](examples/multi-workload/rendered.yaml).
-
-The application must read the mounted file or be configured through chart values to use it. The renderer does not modify application command lines, configuration files, or process environment variables.
-
-## Explicitly unsupported
-
-Agent cache, token sharing, extra-secret mounts, JSON patches, command hooks, TLS skip verification, custom PodSpec paths, and many other official annotations are not implemented. Unknown keys fail rather than silently approximating the official injector. See [ROADMAP.md](ROADMAP.md) for planned work.
+The application must be configured to read the mounted file if it needs its contents. Neither engine rewrites application configuration or turns rendered files into process environment variables. [Local qualification](QUALIFICATION.md) records which behaviors were exercised with Vault and Kubernetes; use it alongside this API inventory rather than treating every possible combination as live-tested.

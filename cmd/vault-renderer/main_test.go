@@ -43,7 +43,7 @@ spec:
 	if code := run(nil, in, &out, &diag); code != 0 {
 		t.Fatalf("exit %d: %s", code, diag.String())
 	}
-	if !strings.Contains(out.String(), "kind: ConfigMap") || !strings.Contains(out.String(), "name: vault-agent-init") || diag.Len() != 0 {
+	if !strings.Contains(out.String(), "name: vault-agent-init") || !strings.Contains(out.String(), "agent-inject-status: injected") || diag.Len() != 0 {
 		t.Fatalf("stdout=%s stderr=%s", out.String(), diag.String())
 	}
 	var second bytes.Buffer

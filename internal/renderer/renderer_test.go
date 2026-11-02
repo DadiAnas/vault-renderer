@@ -1,6 +1,8 @@
 package renderer
 
 import (
+	"encoding/base64"
+	"encoding/json"
 	"strings"
 	"testing"
 
@@ -523,7 +525,7 @@ spec:
 		t.Fatal(err)
 	}
 	s := string(out)
-	if !strings.Contains(s, "kind: ConfigMap") || !strings.Contains(s, "appcode: final") || !strings.Contains(s, "opscontact: final") || strings.Contains(s, "appcode: first") || strings.Contains(s, "opscontact: first") {
+	if !strings.Contains(s, "name: vault-agent-init") || !strings.Contains(s, "appcode: final") || !strings.Contains(s, "opscontact: final") || strings.Contains(s, "appcode: first") || strings.Contains(s, "opscontact: first") {
 		t.Fatal(s)
 	}
 }
@@ -585,12 +587,17 @@ func TestDefaultTemplateMatchesOfficialMapAndAllowsJSON(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(out), "range $key, $value := .Data") || strings.Contains(string(out), "toJSON") {
+	contents := agentConfigFromRendered(t, out, "vault-agent")["template"].([]any)[0].(map[string]any)["contents"].(string)
+	if !strings.Contains(contents, "range $k, $v := .Data") || strings.Contains(contents, "toJSON") {
 		t.Fatal("default template did not use the official map form")
 	}
 	input = strings.Replace(input, "vault.hashicorp.com/agent-inject-secret-db:", "vault.hashicorp.com/agent-inject-default-template: json, vault.hashicorp.com/agent-inject-secret-db:", 1)
 	out, err = Render([]byte(input), DefaultConfig(), "")
-	if err != nil || !strings.Contains(string(out), "toJSON") {
+	if err != nil {
+		t.Fatal(err)
+	}
+	contents = agentConfigFromRendered(t, out, "vault-agent")["template"].([]any)[0].(map[string]any)["contents"].(string)
+	if !strings.Contains(contents, "toJSON") {
 		t.Fatal("json default template was not honored", err)
 	}
 }
@@ -605,7 +612,7 @@ func TestAnnotationDiscoveryDefaultsOnAndCanBeDisabled(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(out), "kind: ConfigMap") {
+	if !strings.Contains(string(out), "name: vault-agent-init") {
 		t.Fatal("annotated workload not injected")
 	}
 	cfg, err = ParseConfig([]byte("vault-injector:\n  enabled: true\n  annotationDiscovery: false\n  defaults: {vault-addr: https://vault.example.com}\n"))
@@ -616,7 +623,7 @@ func TestAnnotationDiscoveryDefaultsOnAndCanBeDisabled(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if strings.Contains(string(out), "kind: ConfigMap") {
+	if strings.Contains(string(out), "name: vault-agent-init") {
 		t.Fatal("annotation discovery opt-out was ignored")
 	}
 	input = strings.Replace(input, `vault.hashicorp.com/agent-inject: "true"`, `vault.hashicorp.com/agent-inject: "false"`, 1)
@@ -628,16 +635,187 @@ func TestAnnotationDiscoveryDefaultsOnAndCanBeDisabled(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if strings.Contains(string(out), "kind: ConfigMap") {
+	if strings.Contains(string(out), "name: vault-agent-init") {
 		t.Fatal("explicit false annotation was injected without a target")
 	}
 }
 
 func TestDiscoveredUnsupportedAnnotationFails(t *testing.T) {
-	input := strings.Replace(deployment, "annotations: {other: keep}", "annotations: {vault.hashicorp.com/agent-inject: \"true\", vault.hashicorp.com/service: https://vault.example.com, vault.hashicorp.com/role: payment, vault.hashicorp.com/agent-inject-secret-db: secret/data/payment, vault.hashicorp.com/agent-inject-command-db: reload}", 1)
+	input := strings.Replace(deployment, "annotations: {other: keep}", "annotations: {vault.hashicorp.com/agent-inject: \"true\", vault.hashicorp.com/service: https://vault.example.com, vault.hashicorp.com/role: payment, vault.hashicorp.com/agent-inject-secret-db: secret/data/payment, vault.hashicorp.com/does-not-exist: value}", 1)
 	_, err := Render([]byte(input), DefaultConfig(), "")
-	if err == nil || !strings.Contains(err.Error(), "unsupported setting") {
+	if err == nil || !strings.Contains(err.Error(), "unsupported Vault annotations") {
 		t.Fatal("unsupported injector annotation did not fail clearly", err)
+	}
+}
+
+func TestNativeVaultCAAndTLSAnnotations(t *testing.T) {
+	input := strings.Replace(deployment, "annotations: {other: keep}", `annotations: {vault.hashicorp.com/agent-inject: "true", vault.hashicorp.com/service: https://vault.example.com, vault.hashicorp.com/role: payment, vault.hashicorp.com/namespace: engineering/dev, vault.hashicorp.com/tls-secret: company-ca, vault.hashicorp.com/ca-cert: /vault/tls/ca.pem, vault.hashicorp.com/tls-server-name: vault.example.com, vault.hashicorp.com/agent-inject-secret-db: secret/data/payment}`, 1)
+	out, err := Render([]byte(input), DefaultConfig(), "production")
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := string(out)
+	for _, want := range []string{`secretName: company-ca`, `mountPath: /vault/tls`} {
+		if !strings.Contains(s, want) {
+			t.Fatalf("missing %q in rendered output", want)
+		}
+	}
+	agentConfig := agentConfigFromRendered(t, out, "vault-agent")
+	vault := agentConfig["vault"].(map[string]any)
+	if vault["ca_cert"] != "/vault/tls/ca.pem" || vault["tls_server_name"] != "vault.example.com" {
+		t.Fatal("CA and TLS server name were not passed to Vault Agent")
+	}
+}
+
+func TestOfficialAnnotationsDrivePreDeploymentMutation(t *testing.T) {
+	input := strings.Replace(deployment, "annotations: {other: keep}", `annotations: {vault.hashicorp.com/agent-inject: "true", vault.hashicorp.com/service: https://vault.example.com, vault.hashicorp.com/role: payment, vault.hashicorp.com/namespace: engineering/dev, vault.hashicorp.com/tls-secret: company-ca, vault.hashicorp.com/ca-cert: /vault/tls/ca.pem, vault.hashicorp.com/agent-inject-secret-db: secret/data/payment, vault.hashicorp.com/agent-inject-command-db: reload, vault.hashicorp.com/agent-cache-enable: "true", vault.hashicorp.com/agent-inject-token: "true"}`, 1)
+	out, err := Render([]byte(input), DefaultConfig(), "production")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(out), "kind: ConfigMap") {
+		t.Fatal("official annotation path generated an unnecessary ConfigMap")
+	}
+	agentConfig := agentConfigFromRendered(t, out, "vault-agent")
+	auth := agentConfig["auto_auth"].(map[string]any)["method"].(map[string]any)
+	vault := agentConfig["vault"].(map[string]any)
+	template := agentConfig["template"].([]any)[0].(map[string]any)
+	if auth["namespace"] != "engineering/dev" || vault["ca_cert"] != "/vault/tls/ca.pem" || template["command"] != "reload" || agentConfig["cache"] == nil {
+		t.Fatalf("official Agent settings were not preserved: %#v", agentConfig)
+	}
+	second, err := Render(out, DefaultConfig(), "production")
+	if err != nil || string(out) != string(second) {
+		t.Fatal("official annotation render is not idempotent", err)
+	}
+}
+
+func TestOfficialAnnotationOutputIsDeterministicWithSeveralSecrets(t *testing.T) {
+	input := strings.Replace(deployment, "annotations: {other: keep}", `annotations: {vault.hashicorp.com/agent-inject: "true", vault.hashicorp.com/service: https://vault.example.com, vault.hashicorp.com/role: payment, vault.hashicorp.com/agent-inject-secret-zeta: secret/data/zeta, vault.hashicorp.com/agent-inject-secret-alpha: secret/data/alpha}`, 1)
+	var first string
+	for i := 0; i < 20; i++ {
+		out, err := Render([]byte(input), DefaultConfig(), "production")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if i == 0 {
+			first = string(out)
+		} else if string(out) != first {
+			t.Fatal("official injection output changed across identical renders")
+		}
+	}
+}
+
+func TestOfficialAnnotationStartupModes(t *testing.T) {
+	for _, tc := range []struct {
+		name        string
+		mode        string
+		wantInit    bool
+		wantSidecar bool
+	}{
+		{name: "default", wantInit: true, wantSidecar: true},
+		{name: "init only", mode: `vault.hashicorp.com/agent-pre-populate-only: "true", `, wantInit: true},
+		{name: "sidecar only", mode: `vault.hashicorp.com/agent-pre-populate: "false", `, wantSidecar: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			input := strings.Replace(deployment, "annotations: {other: keep}", `annotations: {vault.hashicorp.com/agent-inject: "true", vault.hashicorp.com/service: https://vault.example.com, vault.hashicorp.com/role: payment, `+tc.mode+`vault.hashicorp.com/agent-inject-secret-db: secret/data/payment}`, 1)
+			out, err := Render([]byte(input), DefaultConfig(), "production")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if strings.Contains(string(out), "name: vault-agent-init") != tc.wantInit || strings.Contains(string(out), "name: vault-agent\n") != tc.wantSidecar {
+				t.Fatal("wrong Agent container pattern")
+			}
+		})
+	}
+}
+
+func TestOfficialAnnotationDiscoveryAcrossWorkloadKinds(t *testing.T) {
+	annotations := map[string]any{
+		prefix + "agent-inject": "true", prefix + "service": "https://vault.example.com",
+		prefix + "role": "demo", prefix + "agent-inject-secret-config": "secret/data/demo",
+	}
+	for _, tc := range []struct{ kind, apiVersion string }{
+		{"Deployment", "apps/v1"}, {"StatefulSet", "apps/v1"}, {"DaemonSet", "apps/v1"},
+		{"Job", "batch/v1"}, {"CronJob", "batch/v1"}, {"Pod", "v1"},
+	} {
+		t.Run(tc.kind, func(t *testing.T) {
+			pod := map[string]any{"metadata": map[string]any{"annotations": annotations}, "spec": map[string]any{"containers": []any{map[string]any{"name": "app", "image": "nginx"}}}}
+			resource := map[string]any{"apiVersion": tc.apiVersion, "kind": tc.kind, "metadata": map[string]any{"name": "demo"}}
+			switch tc.kind {
+			case "Pod":
+				resource["metadata"].(map[string]any)["annotations"] = annotations
+				resource["spec"] = pod["spec"]
+			case "CronJob":
+				resource["spec"] = map[string]any{"jobTemplate": map[string]any{"spec": map[string]any{"template": pod}}}
+			default:
+				resource["spec"] = map[string]any{"template": pod}
+			}
+			input, err := yaml.Marshal(resource)
+			if err != nil {
+				t.Fatal(err)
+			}
+			out, err := Render(input, DefaultConfig(), "apps")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if strings.Count(string(out), "name: vault-agent-init") != 1 || strings.Count(string(out), "name: vault-agent\n") != 1 {
+				t.Fatal("workload was not injected exactly once")
+			}
+		})
+	}
+}
+
+func agentConfigFromRendered(t *testing.T, output []byte, name string) map[string]any {
+	t.Helper()
+	var manifest map[string]any
+	if err := yaml.Unmarshal(output, &manifest); err != nil {
+		t.Fatal(err)
+	}
+	podMeta, pod, err := podParts(manifest)
+	if err != nil || podMeta == nil {
+		t.Fatal("rendered workload lacks PodSpec", err)
+	}
+	for _, kind := range []string{"initContainers", "containers"} {
+		for _, item := range array(pod, kind) {
+			container := item.(map[string]any)
+			if str(container, "name") != name {
+				continue
+			}
+			for _, entry := range array(container, "env") {
+				env := entry.(map[string]any)
+				if str(env, "name") != "VAULT_CONFIG" {
+					continue
+				}
+				decoded, err := base64.StdEncoding.DecodeString(str(env, "value"))
+				if err != nil {
+					t.Fatal(err)
+				}
+				var config map[string]any
+				if err := json.Unmarshal(decoded, &config); err != nil {
+					t.Fatal(err)
+				}
+				return config
+			}
+		}
+	}
+	t.Fatalf("%s has no VAULT_CONFIG", name)
+	return nil
+}
+
+func TestReportsAllUnsupportedAnnotationsTogether(t *testing.T) {
+	input := strings.Replace(deployment, "annotations: {other: keep}", `annotations: {vault.hashicorp.com/agent-inject: "true", vault.hashicorp.com/service: https://vault.example.com, vault.hashicorp.com/role: payment, vault.hashicorp.com/agent-inject-secret-db: secret/data/payment, vault.hashicorp.com/agent-unknown-one: "true", vault.hashicorp.com/agent-unknown-two: reload, vault.hashicorp.com/unknown-proxy: https://proxy.example.com}`, 1)
+	_, err := Render([]byte(input), DefaultConfig(), "")
+	if err == nil {
+		t.Fatal("unsupported annotations were accepted")
+	}
+	message := err.Error()
+	previous := -1
+	for _, key := range []string{"agent-unknown-one", "agent-unknown-two", "unknown-proxy"} {
+		position := strings.Index(message, key)
+		if position <= previous {
+			t.Fatalf("unsupported settings were not all reported in sorted order: %s", message)
+		}
+		previous = position
 	}
 }
 
@@ -665,35 +843,18 @@ func TestVaultEnterpriseNamespaceFromAnnotationAndTargetOverride(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			var cm map[string]any
-			if err := yaml.Unmarshal(out, &cm); err != nil {
+			var manifest map[string]any
+			if err := yaml.Unmarshal(out, &manifest); err != nil {
 				t.Fatal(err)
 			}
-			if object(cm, "metadata")["namespace"] != "production" {
-				t.Fatal("Kubernetes namespace was replaced by Vault namespace")
+			if object(object(object(manifest, "spec"), "template"), "metadata") == nil {
+				t.Fatal("missing Pod template")
 			}
-			for _, filename := range []string{"agent-init.hcl", "agent.hcl"} {
-				raw := cm["data"].(map[string]any)[filename].(string)
-				file, diags := hclsyntax.ParseConfig([]byte(raw), filename, hcl.Pos{Line: 1, Column: 1})
-				if diags.HasErrors() {
-					t.Fatal(diags)
-				}
-				body := file.Body.(*hclsyntax.Body)
-				for _, block := range body.Blocks {
-					if block.Type == "vault" && block.Body.Attributes["namespace"] != nil {
-						t.Fatal("Vault namespace was placed in the vault block")
-					}
-					if block.Type == "auto_auth" {
-						method := block.Body.Blocks[0]
-						attr := method.Body.Attributes["namespace"]
-						if attr == nil {
-							t.Fatal("Vault namespace missing from auth method")
-						}
-						value, diags := attr.Expr.Value(nil)
-						if diags.HasErrors() || value.AsString() != tc.want {
-							t.Fatalf("auth namespace = %v, want %s: %v", value, tc.want, diags)
-						}
-					}
+			for _, container := range []string{"vault-agent-init", "vault-agent"} {
+				config := agentConfigFromRendered(t, out, container)
+				method := config["auto_auth"].(map[string]any)["method"].(map[string]any)
+				if method["namespace"] != tc.want {
+					t.Fatalf("%s namespace = %v, want %s", container, method["namespace"], tc.want)
 				}
 			}
 		})
@@ -737,9 +898,15 @@ func TestEnvironmentTargetOverridesRenderedAnnotations(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	s := string(out)
-	if !strings.Contains(s, "kind: ConfigMap") || !strings.Contains(s, `"env-role"`) || !strings.Contains(s, "secret/data/env") || strings.Contains(s, "secret/data/chart") {
-		t.Fatal(s)
+	if strings.Contains(string(out), "kind: ConfigMap") {
+		t.Fatal("annotated workload used the target-only engine")
+	}
+	agentConfig := agentConfigFromRendered(t, out, "vault-agent")
+	auth := agentConfig["auto_auth"].(map[string]any)["method"].(map[string]any)
+	role := auth["config"].(map[string]any)["role"]
+	secret := agentConfig["template"].([]any)[0].(map[string]any)["contents"].(string)
+	if role != "env-role" || !strings.Contains(secret, "secret/data/env") || strings.Contains(secret, "secret/data/chart") {
+		t.Fatal("environment override did not win")
 	}
 }
 

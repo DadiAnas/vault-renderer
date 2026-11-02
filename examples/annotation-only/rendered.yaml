@@ -1,49 +1,3 @@
-apiVersion: v1
-data:
-  agent-init.hcl: |
-    exit_after_auth = true
-    vault {
-      address = "https://vault.example.com"
-    }
-    auto_auth {
-      method "kubernetes" {
-        mount_path = "auth/kubernetes"
-        config = {
-          role       = "reports"
-          token_path = "/vault/token/token"
-        }
-      }
-    }
-    template {
-      contents    = "{{- with secret \"secret/data/reports/config\" -}}\n{{- range $key, $value := .Data -}}\n{{ $key }}: {{ $value }}\n{{- end -}}\n{{- end -}}\n"
-      destination = "/vault/secrets/app.env"
-      perms       = "0640"
-    }
-  agent.hcl: |
-    exit_after_auth = false
-    vault {
-      address = "https://vault.example.com"
-    }
-    auto_auth {
-      method "kubernetes" {
-        mount_path = "auth/kubernetes"
-        config = {
-          role       = "reports"
-          token_path = "/vault/token/token"
-        }
-      }
-    }
-    template {
-      contents    = "{{- with secret \"secret/data/reports/config\" -}}\n{{- range $key, $value := .Data -}}\n{{ $key }}: {{ $value }}\n{{- end -}}\n{{- end -}}\n"
-      destination = "/vault/secrets/app.env"
-      perms       = "0640"
-    }
-kind: ConfigMap
-metadata:
-  labels:
-    vault-renderer.dadianas.com/managed: "true"
-  name: reports-deployment-vault-agent
----
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -55,9 +9,14 @@ spec:
   template:
     metadata:
       annotations:
-        vault-renderer.dadianas.com/checksum: 2ec30db361d0d3ba3f25d5aa8cde285e2b55e1c4689c6f2a1af4e2df2835b59b
-        vault-renderer.dadianas.com/managed: "true"
+        vault-renderer.dadianas.com/official: 12eadf15250a0c9075ab8eb45e4ed9aa77dbec2035335482c44d1ab599a322e0
+        vault.hashicorp.com/agent-inject: "true"
+        vault.hashicorp.com/agent-inject-file-config: app.env
+        vault.hashicorp.com/agent-inject-secret-config: secret/data/reports/config
         vault.hashicorp.com/agent-inject-status: injected
+        vault.hashicorp.com/agent-service-account-token-volume-name: vault-renderer-token
+        vault.hashicorp.com/role: reports
+        vault.hashicorp.com/service: https://vault.example.com
       labels:
         app: reports
     spec:
@@ -67,13 +26,32 @@ spec:
           volumeMounts:
             - mountPath: /vault/secrets
               name: vault-secrets
-              readOnly: true
         - args:
-            - agent
-            - -config=/vault/config/agent.hcl
+            - echo ${VAULT_CONFIG?} | base64 -d > /home/vault/config.json && vault agent -config=/home/vault/config.json
           command:
-            - /bin/vault
-          image: hashicorp/vault:1.20.4
+            - /bin/sh
+            - -ec
+          env:
+            - name: NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: HOST_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.hostIP
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: VAULT_LOG_LEVEL
+              value: info
+            - name: VAULT_LOG_FORMAT
+              value: standard
+            - name: VAULT_CONFIG
+              value: eyJhdXRvX2F1dGgiOnsibWV0aG9kIjp7InR5cGUiOiJrdWJlcm5ldGVzIiwibW91bnRfcGF0aCI6ImF1dGgva3ViZXJuZXRlcyIsImNvbmZpZyI6eyJyb2xlIjoicmVwb3J0cyIsInRva2VuX3BhdGgiOiIvdmFyL3J1bi9zZWNyZXRzL3ZhdWx0Lmhhc2hpY29ycC5jb20vc2VydmljZWFjY291bnQvdG9rZW4ifX0sInNpbmsiOlt7InR5cGUiOiJmaWxlIiwiY29uZmlnIjp7InBhdGgiOiIvaG9tZS92YXVsdC8udmF1bHQtdG9rZW4ifX1dfSwiZXhpdF9hZnRlcl9hdXRoIjpmYWxzZSwicGlkX2ZpbGUiOiIvaG9tZS92YXVsdC8ucGlkIiwidmF1bHQiOnsiYWRkcmVzcyI6Imh0dHBzOi8vdmF1bHQuZXhhbXBsZS5jb20ifSwidGVtcGxhdGUiOlt7ImRlc3RpbmF0aW9uIjoiL3ZhdWx0L3NlY3JldHMvYXBwLmVudiIsImNvbnRlbnRzIjoie3sgd2l0aCBzZWNyZXQgXCJzZWNyZXQvZGF0YS9yZXBvcnRzL2NvbmZpZ1wiIH19e3sgcmFuZ2UgJGssICR2IDo9IC5EYXRhIH19e3sgJGsgfX06IHt7ICR2IH19XG57eyBlbmQgfX17eyBlbmQgfX0iLCJsZWZ0X2RlbGltaXRlciI6Int7IiwicmlnaHRfZGVsaW1pdGVyIjoifX0ifV0sInRlbXBsYXRlX2NvbmZpZyI6eyJleGl0X29uX3JldHJ5X2ZhaWx1cmUiOnRydWV9fQ==
+          image: hashicorp/vault:2.0.4
+          lifecycle: {}
           name: vault-agent
           resources:
             limits:
@@ -90,23 +68,41 @@ spec:
             readOnlyRootFilesystem: true
             runAsGroup: 1000
             runAsNonRoot: true
-            runAsUser: 1000
+            runAsUser: 100
           volumeMounts:
+            - mountPath: /var/run/secrets/vault.hashicorp.com/serviceaccount
+              name: vault-renderer-token
+              readOnly: true
+            - mountPath: /home/vault
+              name: home-sidecar
             - mountPath: /vault/secrets
               name: vault-secrets
-            - mountPath: /vault/config
-              name: vault-agent-config
-              readOnly: true
-            - mountPath: /vault/token
-              name: vault-agent-token
-              readOnly: true
       initContainers:
         - args:
-            - agent
-            - -config=/vault/config/agent-init.hcl
+            - echo ${VAULT_CONFIG?} | base64 -d > /home/vault/config.json && vault agent -config=/home/vault/config.json
           command:
-            - /bin/vault
-          image: hashicorp/vault:1.20.4
+            - /bin/sh
+            - -ec
+          env:
+            - name: NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: HOST_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.hostIP
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: VAULT_LOG_LEVEL
+              value: info
+            - name: VAULT_LOG_FORMAT
+              value: standard
+            - name: VAULT_CONFIG
+              value: eyJhdXRvX2F1dGgiOnsibWV0aG9kIjp7InR5cGUiOiJrdWJlcm5ldGVzIiwibW91bnRfcGF0aCI6ImF1dGgva3ViZXJuZXRlcyIsImNvbmZpZyI6eyJyb2xlIjoicmVwb3J0cyIsInRva2VuX3BhdGgiOiIvdmFyL3J1bi9zZWNyZXRzL3ZhdWx0Lmhhc2hpY29ycC5jb20vc2VydmljZWFjY291bnQvdG9rZW4ifX0sInNpbmsiOlt7InR5cGUiOiJmaWxlIiwiY29uZmlnIjp7InBhdGgiOiIvaG9tZS92YXVsdC8udmF1bHQtdG9rZW4ifX1dfSwiZXhpdF9hZnRlcl9hdXRoIjp0cnVlLCJwaWRfZmlsZSI6Ii9ob21lL3ZhdWx0Ly5waWQiLCJ2YXVsdCI6eyJhZGRyZXNzIjoiaHR0cHM6Ly92YXVsdC5leGFtcGxlLmNvbSJ9LCJ0ZW1wbGF0ZSI6W3siZGVzdGluYXRpb24iOiIvdmF1bHQvc2VjcmV0cy9hcHAuZW52IiwiY29udGVudHMiOiJ7eyB3aXRoIHNlY3JldCBcInNlY3JldC9kYXRhL3JlcG9ydHMvY29uZmlnXCIgfX17eyByYW5nZSAkaywgJHYgOj0gLkRhdGEgfX17eyAkayB9fToge3sgJHYgfX1cbnt7IGVuZCB9fXt7IGVuZCB9fSIsImxlZnRfZGVsaW1pdGVyIjoie3siLCJyaWdodF9kZWxpbWl0ZXIiOiJ9fSJ9XSwidGVtcGxhdGVfY29uZmlnIjp7ImV4aXRfb25fcmV0cnlfZmFpbHVyZSI6dHJ1ZX19
+          image: hashicorp/vault:2.0.4
           name: vault-agent-init
           resources:
             limits:
@@ -123,30 +119,28 @@ spec:
             readOnlyRootFilesystem: true
             runAsGroup: 1000
             runAsNonRoot: true
-            runAsUser: 1000
+            runAsUser: 100
           volumeMounts:
+            - mountPath: /home/vault
+              name: home-init
+            - mountPath: /var/run/secrets/vault.hashicorp.com/serviceaccount
+              name: vault-renderer-token
+              readOnly: true
             - mountPath: /vault/secrets
               name: vault-secrets
-            - mountPath: /vault/config
-              name: vault-agent-config
-              readOnly: true
-            - mountPath: /vault/token
-              name: vault-agent-token
-              readOnly: true
-      securityContext:
-        fsGroup: 1000
       serviceAccountName: reports
       volumes:
-        - emptyDir:
-            medium: Memory
-          name: vault-secrets
-        - configMap:
-            name: reports-deployment-vault-agent
-          name: vault-agent-config
-        - name: vault-agent-token
+        - name: vault-renderer-token
           projected:
             sources:
               - serviceAccountToken:
-                  audience: vault
-                  expirationSeconds: 3600
                   path: token
+        - emptyDir:
+            medium: Memory
+          name: home-init
+        - emptyDir:
+            medium: Memory
+          name: home-sidecar
+        - emptyDir:
+            medium: Memory
+          name: vault-secrets

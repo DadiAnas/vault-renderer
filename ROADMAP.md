@@ -41,9 +41,17 @@
 - **Evidence:** `v0.1.0-beta.4` is published with six verified archives and checksums. The `webhook-notif` regression, real Tempo chart via Helm 4 plugin, Vault Agent 1.20.4 configuration startup, Go tests, vet, gosec, and CI passed. See [QUALIFICATION.md](QUALIFICATION.md).
 - **Current blocker / next action:** the exact customer chart and Vault Enterprise server were unavailable locally. Verify the installed preview against those before production admission; Agent configuration parsing alone does not prove Enterprise authentication or secret retrieval.
 
+## Injector annotation compatibility batch
+
+- **Outcome / owner / priority:** maintainers / high: support the full pinned vault-k8s 1.7.6 annotation engine for existing annotated charts, including CA/TLS, auth, cache, templates, token sharing, and JSON patches; reject unknown future annotation keys together.
+- **Impact map:** replace the annotation-driven mutation path with HashiCorp's pinned Agent library and JSON patch, preserve target-only legacy rendering, map optional overrides, synthesize a projected token for pre-admission rendering, preserve arbitrary manifest fields, update fixtures, docs, license notices, tests, and release packaging. Annotation-driven output moves from a generated ConfigMap to the official Agent environment configuration; this changes Pod specs and rollout checksums on upgrade.
+- **Acceptance evidence:** the full official annotation key inventory is covered; CA/TLS and advanced annotation fixtures render; output is deterministic and idempotent; existing workload fields and container/volume uniqueness are preserved; real chart rendering and local Vault/kind secret retrieval with the official webhook installed pass; Go tests, vet, gosec, and release checksums pass.
+- **Evidence:** the 74 pinned annotation names were compared with the HashiCorp source and captured as an offline test fixture. Six workload-kind paths, startup modes, CA/TLS, cache, token sharing, command hooks, and deterministic multi-secret output have regression checks. A local kind cluster with Vault 1.20.4 and vault-k8s 1.7.6 proved secret retrieval and refresh, webhook coexistence, unchanged-upgrade stability, rollback, trusted private-CA HTTPS, and rejection of an unrelated CA. Go tests, vet, gosec, and govulncheck pass with Go 1.26.10 and patched x/net/x/text. See [QUALIFICATION.md](QUALIFICATION.md).
+- **Current blocker / next action:** finish docs and release packaging for the new architecture. The exact customer chart and Vault Enterprise server are unavailable locally; neither can be claimed as qualified.
+
 ## Next compatibility work
 
-- Expand supported Vault Agent Injector annotations with tests for each new setting.
+- Track new vault-k8s annotation releases and update the pinned inventory, compatibility tests, and dependency audit together.
 - Add custom PodSpec paths and configurable security contexts only when their validation and conflict behavior are defined.
 - Qualify failure behavior during missing secrets, Vault outages, and reauthentication.
 - Verify installation, upgrade, and rollback in the intended Kubernetes environment before marking a production release.

@@ -45,7 +45,7 @@
         <p class="hero-note">Local Kubernetes + Vault tests passed. Production admission depends on your environment.</p>
       </div>
 
-      <div class="pipeline" role="img" aria-label="Rendering pipeline: Helm manifests with Vault annotations become a ConfigMap and injected Pod. Vault Agent retrieves secrets at runtime.">
+      <div class="pipeline" role="img" aria-label="Rendering pipeline: Helm manifests with Vault annotations become an injected Pod with Agent configuration. Vault Agent retrieves secrets at runtime.">
         <div class="pipeline-rail"><span>01 · HELM OUTPUT</span><span>02 · POST-RENDER</span><span>03 · POD RUNTIME</span></div>
         <div class="pipeline-flow">
           <div class="pipeline-input">
@@ -57,7 +57,7 @@
           </div>
           <div class="pipeline-transform"><span class="transform-line" aria-hidden="true"></span><span class="transform-chip">vault-renderer</span><span class="transform-line" aria-hidden="true"></span></div>
           <div class="pipeline-output">
-            <div class="output-row"><span class="output-glyph" aria-hidden="true">▦</span><div><strong>ConfigMap</strong><small>Agent HCL + templates</small></div><span class="output-check" aria-label="Generated">✓</span></div>
+            <div class="output-row"><span class="output-glyph" aria-hidden="true">▦</span><div><strong>Agent config</strong><small>pinned injector engine</small></div><span class="output-check" aria-label="Generated">✓</span></div>
             <div class="output-row"><span class="output-glyph" aria-hidden="true">▣</span><div><strong>Injected Pod</strong><small>init · sidecar · mounts</small></div><span class="output-check" aria-label="Generated">✓</span></div>
             <div class="runtime-row"><span class="runtime-pulse" aria-hidden="true"></span><span>Vault fetches secrets inside the Pod</span></div>
           </div>
@@ -76,15 +76,15 @@
       <div class="section-intro"><p class="section-kicker">The boundary</p><h2 id="how-title">A post-render step with a clear job.</h2><p>Helm still renders the chart. The renderer changes only selected workload manifests and adds the Agent configuration they need.</p></div>
       <div class="steps">
         <article class="step"><span class="step-index">01</span><div class="step-icon" aria-hidden="true">⌁</div><h3>Select</h3><p>Match a workload by name, namespace, labels, or annotations. Exclusions always win; an empty target list injects nothing by default.</p></article>
-        <article class="step"><span class="step-index">02</span><div class="step-icon" aria-hidden="true">⇢</div><h3>Render</h3><p>Generate one deterministic ConfigMap per workload, then add Agent containers, projected auth, a checksum, and a memory-backed volume.</p></article>
-        <article class="step"><span class="step-index">03</span><div class="step-icon" aria-hidden="true">◈</div><h3>Retrieve</h3><p>After deployment, Vault Agent authenticates through the Pod’s ServiceAccount and writes secret files inside the Pod. Values stay out of the ConfigMap.</p></article>
+        <article class="step"><span class="step-index">02</span><div class="step-icon" aria-hidden="true">⇢</div><h3>Render</h3><p>Use HashiCorp's pinned annotation engine to add Agent containers, projected auth, and memory-backed volumes. Target-only selection can still generate a ConfigMap.</p></article>
+        <article class="step"><span class="step-index">03</span><div class="step-icon" aria-hidden="true">◈</div><h3>Retrieve</h3><p>After deployment, Vault Agent authenticates through the Pod’s ServiceAccount and writes secret files inside the Pod. Retrieved values stay out of Helm resources.</p></article>
       </div>
     </section>
 
     <section class="section examples-section" id="examples" aria-labelledby="examples-title"><div class="wrap">
       <div class="section-intro"><p class="section-kicker">Use cases</p><h2 id="examples-title">Target the workload, not the chart.</h2><p>Keep the upstream chart intact. An external file decides which workloads receive which Vault role, secret paths, and startup mode.</p></div>
       <div class="steps use-case-cards">
-        <article class="step"><span class="step-index">A</span><div class="step-icon" aria-hidden="true">▦</div><h3>Third-party chart</h3><p>Select a Deployment or StatefulSet by its rendered kind and name. The generated ConfigMap sits beside the chart's existing resources.</p></article>
+        <article class="step"><span class="step-index">A</span><div class="step-icon" aria-hidden="true">▦</div><h3>Third-party chart</h3><p>Keep its existing Vault annotations and values. Add the post-renderer to apply the pinned injector mutations before deployment.</p></article>
         <article class="step"><span class="step-index">B</span><div class="step-icon" aria-hidden="true">◇</div><h3>Different roles</h3><p>Give an API, worker, and scheduled Job separate Vault roles and secret paths. Labels and annotations can select groups of workloads.</p></article>
         <article class="step"><span class="step-index">C</span><div class="step-icon" aria-hidden="true">⇢</div><h3>Different timing</h3><p>Use init-only for a short Job, init plus sidecar for a long-running service, or sidecar-only when startup need not wait for a file.</p></article>
       </div>
@@ -94,7 +94,7 @@
           <div><span class="example-input-label">Selection</span><ul class="selection-list"><li><code>Deployment/payment-api</code><span>exact name</span></li><li><code>StatefulSet/payment-worker</code><span>exact name</span></li><li><code>DaemonSet/node-reader</code><span>label expression</span></li><li><code>Job/payment-migration</code><span>native annotations</span></li><li><code>CronJob/nightly-report</code><span>exact name</span></li><li><code>Pod/toolbox</code><span>annotation selector</span></li><li><code>DaemonSet/legacy-agent</code><span>excluded</span></li></ul></div>
           <div><span class="example-input-label">Result</span><ul class="result-list"><li><strong>6 ConfigMaps</strong><span>one Agent config per selected workload</span></li><li><strong>8 original resources</strong><span>unrelated Service and excluded DaemonSet preserved</span></li><li><strong>3 startup patterns</strong><span>init + sidecar, init-only, sidecar-only</span></li></ul></div>
         </div>
-        <p class="example-caveat">Injection makes the file available; your application or chart values must tell the process to read it. The renderer does not rewrite app configuration or environment variables.</p>
+        <p class="example-caveat">The six ConfigMaps above come from optional target-only selection. Existing annotated workloads use HashiCorp's Agent configuration in the Pod, with no new ConfigMap. In both paths, your application must be configured to read the mounted file.</p>
         <div class="example-result-links"><a href="https://github.com/dadianas/vault-renderer/blob/main/examples/annotation-only/manifests.yaml">Annotation-only input ↗</a><a href="https://github.com/dadianas/vault-renderer/blob/main/examples/annotation-only/rendered.yaml">Annotation-only result ↗</a><a href="https://github.com/dadianas/vault-renderer/blob/main/examples/multi-workload/targets.yaml">Target config ↗</a><a href="https://github.com/dadianas/vault-renderer/blob/main/examples/multi-workload/rendered.yaml">Multi-workload result ↗</a></div>
       </div>
     </div></section>
@@ -120,11 +120,12 @@ helm upgrade --install payment ./chart \
     </section>
 
     <section class="section annotation-section wrap" id="annotations" aria-labelledby="annotations-title">
-      <div class="section-intro"><p class="section-kicker">Configuration reference</p><h2 id="annotations-title">Supported annotations, explained.</h2><p>The renderer detects <code>agent-inject: "true"</code> on final rendered Pod templates by default. Helm applies environment values first; matching renderer targets can then override supported annotations. Write short suffixes in a target's <code>inject</code> map, or full <code>vault.hashicorp.com/…</code> names under <code>inject.annotations</code>. Unknown keys fail validation. The table describes the supported subset.</p></div>
+      <div class="section-intro"><p class="section-kicker">Configuration reference</p><h2 id="annotations-title">Supported annotations, explained.</h2><p>The renderer detects <code>agent-inject: "true"</code> on final rendered Pod templates by default and calls the pinned vault-k8s 1.7.6 mutation engine. Helm applies environment values first; matching renderer targets can override annotations. Unknown future keys fail together. These are common examples; the full reference covers all 74 annotation names in that release.</p></div>
       <div class="annotation-card"><div class="annotation-card-head"><strong>Vault annotation suffix</strong><span>What the renderer does</span></div><div class="table-scroll"><table><tbody>
         <tr><th scope="row"><code>role</code></th><td>Uses this Vault Kubernetes auth role. Required for injection.</td></tr>
         <tr><th scope="row"><code>namespace</code></th><td>Sets the Vault Enterprise namespace on Agent authentication; separate from the Kubernetes release namespace.</td></tr>
-        <tr><th scope="row"><code>service</code></th><td>Overrides the Vault address. HTTPS is required by default.</td></tr>
+        <tr><th scope="row"><code>service</code></th><td>Sets the Vault address. Native annotations follow the official injector's HTTP or HTTPS behavior.</td></tr>
+        <tr><th scope="row"><code>tls-secret / ca-cert</code></th><td>Mounts the CA Secret into Agent containers and sets its certificate path.</td></tr>
         <tr><th scope="row"><code>agent-image</code></th><td>Sets the image used by both Agent containers.</td></tr>
         <tr><th scope="row"><code>agent-inject</code></th><td>An explicit <code>"false"</code> disables injection for the workload.</td></tr>
         <tr><th scope="row"><code>agent-pre-populate</code></th><td>Controls the init Agent. <code>"false"</code> gives sidecar-only startup.</td></tr>
@@ -132,6 +133,8 @@ helm upgrade --install payment ./chart \
         <tr><th scope="row"><code>agent-init-first</code></th><td>Places the Vault init Agent before existing init containers when set to <code>"true"</code>.</td></tr>
         <tr><th scope="row"><code>agent-inject-secret-ID</code></th><td>Names a Vault secret path. ID can be any safe destination identifier.</td></tr>
         <tr><th scope="row"><code>agent-inject-template-ID</code></th><td>Supplies multiline Consul Template content, preserved verbatim.</td></tr>
+        <tr><th scope="row"><code>agent-inject-command-ID</code></th><td>Runs a command after the matching template renders.</td></tr>
+        <tr><th scope="row"><code>agent-cache-* / agent-inject-token</code></th><td>Controls Agent cache and optional token sharing.</td></tr>
         <tr><th scope="row"><code>agent-inject-default-template</code></th><td>Uses the official map-style default, or <code>json</code> when selected.</td></tr>
         <tr><th scope="row"><code>agent-inject-file-ID</code></th><td>Chooses the rendered filename under the shared mount.</td></tr>
         <tr><th scope="row"><code>agent-inject-perms-ID</code></th><td>Sets four-digit octal file permissions; default <code>0640</code>.</td></tr>
@@ -139,17 +142,17 @@ helm upgrade --install payment ./chart \
         <tr><th scope="row"><code>agent-run-as-user / group</code></th><td>Sets non-root Agent identity and checks the Pod group.</td></tr>
         <tr><th scope="row"><code>agent-requests-* / limits-*</code></th><td>Sets CPU, memory, or ephemeral-storage quantities on Agent containers.</td></tr>
         <tr><th scope="row"><code>template-static-secret-render-interval</code></th><td>Controls refresh of non-leased secrets such as KV v2.</td></tr>
-      </tbody></table></div><div class="annotation-card-foot"><p>Renderer settings such as <code>vault-addr</code>, <code>auth-path</code>, token audience, mount path, and private-CA Secret are documented with defaults in the full reference.</p><a class="text-link" href="https://github.com/dadianas/vault-renderer/blob/main/ANNOTATIONS.md">Read every supported key and limit <span aria-hidden="true">↗</span></a></div></div>
+      </tbody></table></div><div class="annotation-card-foot"><p>The native annotation path uses HashiCorp's pinned mutation code. Optional target-only settings retain the renderer's ConfigMap-based path.</p><a class="text-link" href="https://github.com/dadianas/vault-renderer/blob/main/ANNOTATIONS.md">Read all 74 annotation names <span aria-hidden="true">↗</span></a></div></div>
     </section>
 
     <section class="section security-section" id="security" aria-labelledby="security-title"><div class="wrap security-grid">
-      <div class="section-intro"><p class="section-kicker">Trust boundary</p><h2 id="security-title">Configuration in the ConfigMap.<br>Secrets in memory.</h2><p>The renderer never contacts Vault. It generates the instructions and mounts; Vault Agent does the authentication and retrieval after the Pod starts.</p><a class="text-link" href="https://github.com/dadianas/vault-renderer/blob/main/QUALIFICATION.md">Read the local test record <span aria-hidden="true">↗</span></a></div>
-      <div class="security-panel"><div class="security-panel-row"><span class="security-icon" aria-hidden="true">◇</span><div><h3>Generated ConfigMap</h3><p>Vault address, Kubernetes auth role, HCL, and template expressions. No retrieved values or tokens.</p></div></div><div class="security-panel-row"><span class="security-icon" aria-hidden="true">◉</span><div><h3>Inside the Pod</h3><p>Projected ServiceAccount token for the Agent and a memory-backed volume for rendered secret files.</p></div></div><div class="security-panel-row"><span class="security-icon" aria-hidden="true">✓</span><div><h3>TLS by default</h3><p>HTTPS is required unless HTTP is explicitly enabled for local testing. A private-CA path was verified in Kubernetes.</p></div></div></div>
+      <div class="section-intro"><p class="section-kicker">Trust boundary</p><h2 id="security-title">Agent instructions in the Pod.<br>Secrets in memory.</h2><p>The renderer never contacts Vault. Native annotations produce Agent configuration inside the Pod; target-only selection generates a ConfigMap. Vault Agent retrieves secrets after the Pod starts.</p><a class="text-link" href="https://github.com/dadianas/vault-renderer/blob/main/QUALIFICATION.md">Read the local test record <span aria-hidden="true">↗</span></a></div>
+      <div class="security-panel"><div class="security-panel-row"><span class="security-icon" aria-hidden="true">◇</span><div><h3>Agent configuration</h3><p>Vault address, auth role, and template expressions. No retrieved values; no new ConfigMap for annotated workloads.</p></div></div><div class="security-panel-row"><span class="security-icon" aria-hidden="true">◉</span><div><h3>Inside the Pod</h3><p>Projected ServiceAccount token for the Agent and memory-backed volumes for rendered secret files.</p></div></div><div class="security-panel-row"><span class="security-icon" aria-hidden="true">✓</span><div><h3>Verified TLS path</h3><p>A local trusted CA succeeded; an unrelated CA failed closed. Production admission remains environment-specific.</p></div></div></div>
     </div></section>
 
     <section class="closing wrap"><div><p class="section-kicker">Build with clear limits</p><h2>Start with the source.<br>Keep the evidence close.</h2><p>The compatibility matrix documents supported settings and open gaps. Local Vault/Kubernetes tests are recorded separately from production admission.</p></div><div class="closing-actions"><a class="button button-primary" href="https://github.com/dadianas/vault-renderer">Open the repository <span aria-hidden="true">↗</span></a><a class="button button-secondary" href="https://github.com/dadianas/vault-renderer/blob/main/ROADMAP.md">View the roadmap <span aria-hidden="true">↗</span></a></div></section>
   </main>
 
-  <footer class="site-footer"><div class="wrap footer-inner"><span class="footer-brand">vault<span>/</span>renderer</span><span>Open source under the MIT License · © 2026 Anas DADI</span><a href="https://github.com/dadianas/vault-renderer">GitHub ↗</a></div></footer>
+  <footer class="site-footer"><div class="wrap footer-inner"><span class="footer-brand">vault<span>/</span>renderer</span><span>MIT project · pinned HashiCorp injector under MPL 2.0 · © 2026 Anas DADI</span><a href="https://github.com/dadianas/vault-renderer">GitHub ↗</a></div></footer>
 </body>
 </html>

@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/hashicorp/go-secure-stdlib/parseutil"
 	"github.com/hashicorp/hcl/v2/hclwrite"
 	"github.com/zclconf/go-cty/cty"
 	"gopkg.in/yaml.v3"
@@ -203,7 +204,10 @@ func normalize(input map[string]any) (map[string]string, error) {
 	return out, nil
 }
 
-func validateSettings(s map[string]string) error {
+func validateSettings(s map[string]string) error { return validateSettingsFor(s, true) }
+
+func validateSettingsFor(s map[string]string, allowOfficial bool) error {
+	var unsupported []string
 	for key, val := range s {
 		switch {
 		case key == "role", key == "vault-addr", key == "service", key == "auth-path", key == "agent-image", key == "namespace", key == "vault-namespace", key == "token-audience", key == "mount-path", key == "volume-name", key == "agent-inject-containers", key == "tls-secret", key == "tls-ca-cert":
@@ -245,8 +249,14 @@ func validateSettings(s map[string]string) error {
 				return fmt.Errorf("%s cannot be empty", key)
 			}
 		default:
-			return fmt.Errorf("unsupported setting %q", key)
+			if !allowOfficial || !isOfficialAnnotation(key) {
+				unsupported = append(unsupported, key)
+			}
 		}
+	}
+	if len(unsupported) > 0 {
+		sort.Strings(unsupported)
+		return fmt.Errorf("unsupported settings: %s", strings.Join(unsupported, ", "))
 	}
 	if (s["tls-secret"] == "") != (s["tls-ca-cert"] == "") {
 		return fmt.Errorf("tls-secret and tls-ca-cert must be supplied together")
@@ -426,8 +436,15 @@ func Render(input []byte, cfg Config, releaseNamespace string) ([]byte, error) {
 		matched := cfg.Injector.Mode == "all" && namespace != "kube-system" && namespace != "kube-public" && namespace != "kube-node-lease"
 		if cfg.Injector.AnnotationDiscovery {
 			podMeta, _, err := podParts(doc)
-			if err == nil && str(object(podMeta, "annotations"), prefix+"agent-inject") == "true" {
-				matched = true
+			if err == nil {
+				raw := str(object(podMeta, "annotations"), prefix+"agent-inject")
+				if raw != "" {
+					enabled, err := parseutil.ParseBool(raw)
+					if err != nil {
+						return nil, fmt.Errorf("%s %s: invalid agent-inject annotation: %w", kind, str(meta, "name"), err)
+					}
+					matched = matched || enabled
+				}
 			}
 		}
 		disabled := false
@@ -483,6 +500,17 @@ func Render(input []byte, cfg Config, releaseNamespace string) ([]byte, error) {
 			return nil, err
 		}
 		podAnns := ensureObject(podMeta, "annotations")
+		nativeRaw := str(podAnns, prefix+"agent-inject")
+		nativeEnabled := false
+		if nativeRaw != "" {
+			nativeEnabled, err = parseutil.ParseBool(nativeRaw)
+			if err != nil {
+				return nil, fmt.Errorf("%s %s: invalid agent-inject annotation: %w", kind, str(meta, "name"), err)
+			}
+			if !nativeEnabled && selected["agent-inject"] != "true" {
+				continue
+			}
+		}
 		if str(podAnns, marker) == "true" {
 			cmName := name(cfg.Injector.NamePrefix, str(meta, "name"), kind)
 			cm := configMaps[namespace+"/"+cmName]
@@ -491,6 +519,30 @@ func Render(input []byte, cfg Config, releaseNamespace string) ([]byte, error) {
 			}
 			if err := verifyInjected(podSpec, podAnns, cm); err != nil {
 				return nil, fmt.Errorf("%s %s: %w", kind, str(meta, "name"), err)
+			}
+			continue
+		}
+		if nativeEnabled || nativeRaw != "" && selected["agent-inject"] == "true" {
+			settings := map[string]string{}
+			if err := mergeOfficialLayer(settings, cfg.Injector.Defaults); err != nil {
+				return nil, fmt.Errorf("%s %s: %w", kind, str(meta, "name"), err)
+			}
+			native := map[string]string{}
+			for key, value := range podAnns {
+				if text, ok := value.(string); ok && strings.HasPrefix(key, prefix) {
+					native[strings.TrimPrefix(key, prefix)] = text
+				}
+			}
+			if err := mergeOfficialLayer(settings, native); err != nil {
+				return nil, fmt.Errorf("%s %s: %w", kind, str(meta, "name"), err)
+			}
+			if err := mergeOfficialLayer(settings, selected); err != nil {
+				return nil, fmt.Errorf("%s %s: %w", kind, str(meta, "name"), err)
+			}
+			if settings["agent-inject"] != "false" {
+				if err := injectOfficial(doc, podMeta, podSpec, namespace, settings); err != nil {
+					return nil, fmt.Errorf("%s %s: %w", kind, str(meta, "name"), err)
+				}
 			}
 			continue
 		}
@@ -512,7 +564,7 @@ func Render(input []byte, cfg Config, releaseNamespace string) ([]byte, error) {
 		if settings["agent-inject"] == "false" {
 			continue
 		}
-		if err := validateSettings(settings); err != nil {
+		if err := validateSettingsFor(settings, false); err != nil {
 			return nil, fmt.Errorf("%s %s: %w", kind, str(meta, "name"), err)
 		}
 		cm, err := inject(doc, podMeta, podSpec, settings, cfg, namespace)
