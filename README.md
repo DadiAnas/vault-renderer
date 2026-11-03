@@ -40,6 +40,8 @@ go build -o vault-renderer ./cmd/vault-renderer
 export PATH="$PWD:$PATH"
 helm plugin install "$PWD/helm4-plugin"
 helm template myapp ./chart --namespace production --post-renderer vault-renderer
+# After reviewing the rendered manifests:
+helm upgrade --install myapp ./chart --namespace production --post-renderer vault-renderer
 ```
 
 The plugin is needed only for Helm 4 integration. The renderer itself has no Helm runtime dependency and remains a plain stdin/stdout executable. This version boundary means the specification's no-plugin direct invocation is achievable in Helm 3, but not in Helm 4.
@@ -59,13 +61,15 @@ The [rendered result](examples/annotation-only/rendered.yaml) contains the origi
 [Helm 2 has no native post-renderer](https://v2.helm.sh/docs/helm/). Render the original Helm 2 chart, pipe it through the Go renderer, and package the result as a normal Helm 2 chart. The source chart is untouched. Use a **new output directory for every revision**:
 
 ```sh
-helm template ./third-party-chart --name payment --namespace production -f chart-values.yaml \
-  | vault-renderer helm2-chart --config vault-values.yaml --namespace production \
-      --output-dir ./rendered-payment-001
-helm upgrade --install payment ./rendered-payment-001 --namespace production
+helm template ./chart --name myapp --namespace production -f values.yaml \
+  | ./vault-renderer helm2-chart --config values.yaml --namespace production \
+      --output-dir ./rendered-myapp-001
+helm upgrade --install myapp ./rendered-myapp-001 --namespace production
 ```
 
-For an upgrade, re-render with the same release name and add `--is-upgrade` to `helm template`; package into `rendered-payment-002`, then `helm upgrade payment ./rendered-payment-002`. Roll back with Helm 2's normal `helm rollback payment REVISION`. The generated chart stores the processed manifests as a file and reads them with `.Files.Get`, so Helm does not evaluate Vault's `{{ ... }}` template expressions a second time. Helm 2 supports v1 source charts; the rendered chart records baked manifests rather than the original chart and values. Keep the original chart, values, and Vault config in source control for reproducible upgrades. This workflow requires a working Helm 2/Tiller installation for deployment.
+For an upgrade, re-render with the same release name and add `--is-upgrade` to `helm template`; package into `rendered-myapp-002`, then `helm upgrade myapp ./rendered-myapp-002`. Roll back with Helm 2's normal `helm rollback myapp REVISION`. The generated chart stores the processed manifests as a file and reads them with `.Files.Get`, so Helm does not evaluate Vault's `{{ ... }}` template expressions a second time. Helm 2 supports v1 source charts; the rendered chart records baked manifests rather than the original chart and values. Keep the original chart and values in source control for reproducible upgrades. This workflow requires a working Helm 2/Tiller installation for deployment.
+
+For Helm 2, the environment-variable alternative belongs on the **renderer side** of the pipe: `helm template ... | VAULT_RENDERER_CONFIG=values.yaml ./vault-renderer helm2-chart --namespace production --output-dir ./rendered-myapp-002`. An assignment before `helm template` would apply only to that command.
 
 For standalone use: `vault-renderer render --config FILE --namespace production < manifests.yaml`. Without a subcommand, it renders. `--dry-run` validates the rendered stream and writes no manifests. `--debug` or `--log-level debug` writes a byte count to stderr. Rendering writes only YAML to stdout. Unknown config keys and unsupported injection settings always fail, including when `enabled: false`; `--strict=false` is deliberately rejected.
 

@@ -75,6 +75,9 @@
 ## Next compatibility work
 
 - Track new vault-k8s annotation releases and update the pinned inventory, compatibility tests, and dependency audit together.
+- Add custom PodSpec paths and configurable security contexts only when their validation and conflict behavior are defined.
+- Qualify failure behavior during missing secrets, Vault outages, and reauthentication.
+- Verify installation, upgrade, and rollback in the intended Kubernetes environment before marking a production release.
 
 ## Architecture documentation
 
@@ -84,6 +87,11 @@
 - **Evidence:** source paths for selection, official mutation, target-only ConfigMaps, webhook status, and runtime token handling were checked against `renderer.go` and `official.go`. `ARCHITECTURE.md` now contains two Mermaid diagrams and configuration-order explanations; the site contains two responsive HTML diagrams. Local browser checks at 1440 px, 770 px, and 390 px showed no horizontal overflow, and the page had no browser errors.
 - **Delivery evidence:** the GitHub guide renders both Mermaid diagrams at commit `ace1bc8`; the runtime branch is readable without crossing paths. GitHub Pages built that exact commit, and the live site contains both architecture diagrams and the guide link. The README links to the guide. No application or renderer code changed.
 - **Current cursor:** architecture documentation delivered. Future behavior changes should update the diagrams alongside their implementation.
-- Add custom PodSpec paths and configurable security contexts only when their validation and conflict behavior are defined.
-- Qualify failure behavior during missing secrets, Vault outages, and reauthentication.
-- Verify installation, upgrade, and rollback in the intended Kubernetes environment before marking a production release.
+
+## Version-specific usage documentation
+
+- **Outcome / owner / priority:** maintainers / high: make the Helm 2, 3, and 4 deployment commands directly visible in the docs, so readers can tell which invocation changes across versions.
+- **Impact map:** README version sections and same-file values examples, public site's Helm version cards, and responsive code-block styling. The renderer binary, configuration contract, and release assets do not change.
+- **Acceptance evidence:** each version has a complete copyable deployment flow; Helm 4 includes `upgrade --install`, Helm 2 shows rendered-chart packaging, and Helm 3/4 show path versus plugin name; relative `values.yaml` and both inline and environment configuration are explained; browser checks show no clipping or overflow; public README and Pages contain the commands.
+- **Evidence:** README now shows Helm 4 `upgrade --install`, Helm 2's same-file packaging flow, and the Helm 2 environment-variable placement on the right side of the pipe. The site's three version cards each show a deployment command and link to detailed instructions. Local browser checks at 1440 px and 390 px found all three commands readable, no horizontal page overflow or clipped code blocks, and no browser errors.
+- **Current cursor:** version-specific commands are ready to publish. Next action: verify the public README and Pages build after pushing.

@@ -177,7 +177,11 @@ code { font-size: .88em; }
 .version-card h3 { margin-bottom: 10px; font: 700 24px/1.2 var(--display); letter-spacing: -.045em; }
 .version-card p { flex: 1; color: var(--muted); font-size: 13px; line-height: 1.65; }
 .version-card code { padding: 2px 4px; border-radius: 3px; background: #edf3f5; color: #245466; font-size: 11px; }
+.version-card pre { margin: 18px 0 22px; padding: 13px; border: 1px solid #dce8e7; border-radius: 9px; background: #f4f8f8; font: 10px/1.65 var(--mono); white-space: pre; overflow-x: auto; }
+.version-card pre code { padding: 0; background: none; color: var(--ink); font: inherit; }
 .version-card a { display: inline-flex; gap: 8px; align-items: center; color: var(--ink); text-decoration: none; font-size: 12px; font-weight: 700; }
+.version-footnote { margin: 18px 0 0; color: var(--muted); font-size: 13px; }
+.version-footnote a { color: var(--teal); font-weight: 700; }
 
 .annotation-card { margin-top: 52px; overflow: hidden; border: 1px solid var(--line); border-radius: 16px; background: white; }
 .annotation-card-head { display: flex; justify-content: space-between; gap: 15px; padding: 19px 24px; color: var(--muted); background: #eaf0f2; font: 500 11px var(--mono); }

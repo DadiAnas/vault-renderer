@@ -152,12 +152,27 @@ helm upgrade --install myapp ./chart \
     </div></section>
 
     <section class="section wrap" id="helm" aria-labelledby="helm-title">
-      <div class="section-intro"><p class="section-kicker">Compatibility</p><h2 id="helm-title">The same renderer. Three Helm paths.</h2><p>Helm changed its post-renderer interface across major versions. Each path keeps the renderer’s stdin/stdout contract intact.</p></div>
+      <div class="section-intro"><p class="section-kicker">Compatibility</p><h2 id="helm-title">The same renderer. Three Helm paths.</h2><p>The renderer reads and writes the same manifests in every version. The deployment command changes: Helm 2 packages rendered output, Helm 3 calls the executable, and Helm 4 calls a plugin. These commands pass the same <code>values.yaml</code> to Helm and the renderer.</p></div>
       <div class="version-grid">
-        <article class="version-card"><div class="version-top"><span class="version-number">02</span><span class="version-label">rendered chart</span></div><h3>Helm 2</h3><p>Helm 2 has no post-renderer. Pipe <code>helm template</code> into <code>vault-renderer helm2-chart</code>, then install the generated v1 chart as a Helm release.</p><a href="https://github.com/dadianas/vault-renderer#helm-2">Read the Helm 2 flow <span aria-hidden="true">↗</span></a></article>
-        <article class="version-card version-featured"><div class="version-top"><span class="version-number">03</span><span class="version-label">direct executable</span></div><h3>Helm 3</h3><p>Pass the binary path directly to <code>--post-renderer</code>. Helm includes the transformed manifests in install, upgrade, and rollback history.</p><a href="https://github.com/dadianas/vault-renderer#helm-3">Read the Helm 3 flow <span aria-hidden="true">↗</span></a></article>
-        <article class="version-card"><div class="version-top"><span class="version-number">04</span><span class="version-label">plugin manifest</span></div><h3>Helm 4</h3><p>Install the small <code>postrenderer/v1</code> manifest, then pass its name to <code>--post-renderer</code>. The core binary remains independent of Helm.</p><a href="https://github.com/dadianas/vault-renderer#helm-4">Read the Helm 4 flow <span aria-hidden="true">↗</span></a></article>
+        <article class="version-card"><div class="version-top"><span class="version-number">02</span><span class="version-label">rendered chart</span></div><h3>Helm 2</h3><p>Helm 2 has no post-renderer. Render and package a new chart revision, then deploy it.</p><pre><code>helm template ./chart --name myapp \
+  -f values.yaml \
+  | ./vault-renderer helm2-chart \
+      --config values.yaml \
+      --output-dir ./rendered-myapp-001
+helm upgrade --install myapp \
+  ./rendered-myapp-001</code></pre><a href="https://github.com/dadianas/vault-renderer#helm-2">Read the Helm 2 flow <span aria-hidden="true">↗</span></a></article>
+        <article class="version-card version-featured"><div class="version-top"><span class="version-number">03</span><span class="version-label">direct executable</span></div><h3>Helm 3</h3><p>Pass the binary path directly to <code>--post-renderer</code>.</p><pre><code>helm upgrade --install myapp ./chart \
+  -f values.yaml \
+  --post-renderer ./vault-renderer \
+  --post-renderer-args=--config=values.yaml</code></pre><a href="https://github.com/dadianas/vault-renderer#helm-3">Read the Helm 3 flow <span aria-hidden="true">↗</span></a></article>
+        <article class="version-card"><div class="version-top"><span class="version-number">04</span><span class="version-label">plugin manifest</span></div><h3>Helm 4</h3><p>Put the binary on <code>PATH</code>, install the bundled plugin, and pass its name.</p><pre><code>export PATH="$PWD:$PATH"
+helm plugin install ./helm4-plugin
+helm upgrade --install myapp ./chart \
+  -f values.yaml \
+  --post-renderer vault-renderer \
+  --post-renderer-args=--config=values.yaml</code></pre><a href="https://github.com/dadianas/vault-renderer#helm-4">Read the Helm 4 flow <span aria-hidden="true">↗</span></a></article>
       </div>
+      <p class="version-footnote">Use <code>VAULT_RENDERER_CONFIG=values.yaml</code> instead of <code>--config</code> if you prefer an environment variable. With Helm 2, put it immediately before <code>./vault-renderer</code> on the right side of the pipe. See the <a href="#quickstart">inline and environment examples</a>.</p>
     </section>
 
     <section class="section annotation-section wrap" id="annotations" aria-labelledby="annotations-title">
